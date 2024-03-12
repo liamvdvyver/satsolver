@@ -15,24 +15,16 @@ data Formula
     | Iff Formula Formula
     deriving (Show, Ord, Eq)
 
-data ProofLine = T Formula | F Formula | Open | Closed
+data ProofLine = T Formula | F Formula
     deriving (Show, Eq)
 
 data ProofNode
     = Then ProofLine Alternates -- A Line which branches to several sub-proofs
     | UnFinally ProofLine -- Line which still may branch
     | Finally ProofLine -- Line which is known not to branch
+    | Open | Closed
     deriving (Show, Eq)
 
-{-
-A proof is a [ProofNode]:
-[ Finally $ T antedent
-, F consequent `Then` [[    <- Then creates a sub-proof, where we can discard the consequent
-    [[ Finally T a
-    ,  UnFinally [T b]      <- This will become Finally T b if it does not branch
-    ]]
-]
--}
 type Alternates = [Consecutives] -- Branched Possibilities
 type Consecutives = [ProofNode]
 type Interpretations = (Set.Set Var, Set.Set Var) -- (trues, falses)
@@ -58,8 +50,6 @@ branchLine line = map (map UnFinally) $ case line of
     (T (Iff a b)) -> [[T a, T b], [F a, F b]]
     (F (Iff a b)) -> [[T a, F b], [F a, T b]]
     -- Non-simplifying proof lines
-    Open -> error "Open does not branch"
-    Closed -> error "Closed does not branch"
     (T _) -> error "Interpretation of variable does not branch"
     (F _) -> error "Interpretation of variable does not branch"
 
@@ -77,8 +67,6 @@ Finally (T (FromVar P))
 Then (T (Or (FromVar P) (FromVar Q))) [[UnFinally (T (FromVar P))],[UnFinally (T (FromVar Q))]]
 -}
 finalise :: ProofNode -> ProofNode
-finalise (UnFinally Open) = Finally Open
-finalise (UnFinally Closed) = Finally Closed
 finalise (UnFinally f@(T (FromVar _))) = Finally f
 finalise (UnFinally f@(F (FromVar _))) = Finally f
 finalise (UnFinally line) = Then line $ branchLine line
@@ -104,7 +92,6 @@ getInterpretations proofNodes = (trues, falses)
     isTrue :: ProofLine -> Bool
     isTrue (T _) = True
     isTrue (F _) = False
-    isTrue _ = error "Not an interpretation"
 
     fromProofLine :: ProofLine -> Var
     fromProofLine (T (FromVar a)) = a
@@ -160,7 +147,7 @@ nBranches _ = 1
 [[Finally (T (FromVar P)),UnFinally (F (FromVar P)),UnFinally (F (FromVar Q))]]
 -}
 getChildren :: Consecutives -> Alternates
-getChildren proofNodes = map (\x -> finals ++ x ++ thens) (fromThen fstThen)
+getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen)
   where
     isFinal (Finally _) = True
     isFinal _ = False
@@ -169,8 +156,8 @@ getChildren proofNodes = map (\x -> finals ++ x ++ thens) (fromThen fstThen)
 
     finals = filter isFinal proofNodes
 
-    allThens = filter isThen proofNodes
-    (fstThen, thens) = case allThens of
+    thens = filter isThen proofNodes
+    (headThen, tailThens) = case thens of
         x : xs -> (x, xs)
         [] -> error "No further branching"
 
@@ -181,23 +168,23 @@ getChildren proofNodes = map (\x -> finals ++ x ++ thens) (fromThen fstThen)
 {- | Recursively prove
 
 >>> proofStep [(Finally $ T $ (FromVar P)), (UnFinally $ F $ (FromVar P) `And` (FromVar Q))]
-[Finally Open]
+[Open]
 >>> proofStep [(Finally $ T $ (FromVar P)), (Finally $ F $ FromVar P), (Finally $ F $ FromVar Q)]
-[Finally Closed]
+[Closed]
 >>> proofStep [(Finally $ T $ (FromVar P)), (UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)] -- The child
-[Finally Closed]
+[Closed]
 >>> proofStep [(Finally $ T $ (FromVar P)), Then (F $ (FromVar P) `Or` (FromVar Q)) [[(UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)]]] -- The parent
-[Finally Closed]
+[Closed]
 >>> proofStep [(Finally $ T $ (FromVar P)), (UnFinally $ F $ (FromVar P) `Or` (FromVar Q))]
-[Finally Closed]
+[Closed]
 -}
 proofStep :: Consecutives -> Consecutives
 proofStep xs
-    | isClosed proof = [Finally Closed]
-    | isOpen proof = [Finally Open]
-    | [Finally Open] `elem` map proofStep children = [Finally Open]
+    | isClosed proof = [Closed]
+    | isOpen proof = [Open]
+    | [Open] `elem` map proofStep children = [Open]
     | not $ null unFinals = error "Checking proof outcome before finalising steps"
-    | otherwise = [Finally Closed] -- Make sure we always hit this case, then clean up
+    | otherwise = [Closed] -- Make sure we always hit this case, then clean up
   where
     proof = map finalise xs
     isUnFinal (UnFinally _) = True
@@ -216,8 +203,8 @@ False
 -}
 isValid :: Sequent -> Bool
 isValid (Entails a b) = case proofStep proof of
-    [Finally Open] -> False
-    [Finally Closed] -> True
+    [Open] -> False
+    [Closed] -> True
     _ -> error "Did not reduce"
   where
     proof =
