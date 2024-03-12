@@ -31,9 +31,6 @@ type Alternates = [Consecutives] -- Branched Possibilities
 type Consecutives = [ProofNode]
 type Interpretations = (Set.Set Var, Set.Set Var) -- (trues, falses)
 
-mergeInterpretations :: Interpretations -> Interpretations -> Interpretations
-mergeInterpretations (t1, f1) (t2, f2) = (Set.union t1 t2, Set.union f1 f2)
-
 {- | Get the (multiples) lines (for multiple branches) which follow from a line of a proof
 
 >>> branchLine $ T (FromVar P `Iff` FromVar Q)
@@ -54,10 +51,6 @@ branchLine line = map (map UnFinally) $ case line of
     -- Non-simplifying proof lines
     (T _) -> error "Interpretation of variable does not branch"
     (F _) -> error "Interpretation of variable does not branch"
-
--- Sort unexpanded connectives on the basis of how many branches
---
---
 
 {- | Turn an unFinally into a subproof, i.e. a list containing Finally or a Then (applying one step of simplification)
 
@@ -169,33 +162,29 @@ getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen
 
 {- | Recursively prove
 
->>> proofStep [(Finally $ T $ (FromVar P)), (UnFinally $ F $ (FromVar P) `And` (FromVar Q))]
+>>> prove [(Finally $ T $ (FromVar P)), (UnFinally $ F $ (FromVar P) `And` (FromVar Q))]
 [Open [(fromList [P],fromList [Q])]]
->>> proofStep [(Finally $ T $ (FromVar P)), (Finally $ F $ FromVar P), (Finally $ F $ FromVar Q)]
+>>> prove [(Finally $ T $ (FromVar P)), (Finally $ F $ FromVar P), (Finally $ F $ FromVar Q)]
 [Closed]
->>> proofStep [(Finally $ T $ (FromVar P)), (UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)] -- The child
+>>> prove [(Finally $ T $ (FromVar P)), (UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)] -- The child
 [Closed]
->>> proofStep [(Finally $ T $ (FromVar P)), Then (F $ (FromVar P) `Or` (FromVar Q)) [[(UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)]]] -- The parent
+>>> prove [(Finally $ T $ (FromVar P)), Then (F $ (FromVar P) `Or` (FromVar Q)) [[(UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)]]] -- The parent
 [Closed]
->>> proofStep [(Finally $ T $ (FromVar P)), (UnFinally $ F $ (FromVar P) `Or` (FromVar Q))]
+>>> prove [(Finally $ T $ (FromVar P)), (UnFinally $ F $ (FromVar P) `Or` (FromVar Q))]
 [Closed]
 -}
-proofStep :: Consecutives -> Consecutives
-proofStep xs
+prove :: Consecutives -> Consecutives
+prove xs
     | isClosed proof = pure Closed
     | isOpen proof = pure $ Open [interpretations]
     | childIsOpen = pure $ Open mergedInterpretations
-    | not $ null unFinals = error "Checking proof outcome before finalising steps"
-    | otherwise = pure Closed -- Make sure we always hit this case, then clean up
+    | otherwise = pure Closed
   where
     proof = map finalise xs
-    isUnFinal (UnFinally _) = True
-    isUnFinal _ = False
-    unFinals = filter isUnFinal proof
 
     children = getChildren proof
 
-    provenChildren = map proofStep children
+    provenChildren = map prove children
 
     isLiteralOpen [Open _] = True
     isLiteralOpen _ = False
@@ -211,6 +200,10 @@ proofStep xs
 
 data Sequent = Entails Formula Formula
 
+-- | Setup a proof from a sequent
+setupProof :: Sequent -> Consecutives
+setupProof (Entails a b) = [UnFinally (T a), UnFinally (F b)]
+
 {- | Check if a sequent is valid
 
 >>> isValid $ (Not $ (FromVar P) `Or` (FromVar Q)) `Entails` ((Not $ FromVar P) `And` (Not $ FromVar Q))
@@ -219,12 +212,14 @@ True
 False
 -}
 isValid :: Sequent -> Bool
-isValid (Entails a b) = case proofStep proof of
+isValid s = case proveSequent s of
     [Open _] -> False
     [Closed] -> True
     _ -> error "Did not reduce"
-  where
-    proof =
-        [ UnFinally (T a)
-        , UnFinally (F b)
-        ]
+
+-- | Prove a sequent
+--
+-- >>> proveSequent $ (((FromVar P) `Or` (FromVar Q)) `Iff` ((FromVar R) `Or` (FromVar S))) `Entails` (((FromVar P) `Iff` (FromVar R)) `Or` ((FromVar Q) `Iff` (FromVar S)))
+-- [Open [(fromList [P,S],fromList [Q,R]),(fromList [Q,R],fromList [P,S])]]
+proveSequent :: Sequent -> Consecutives
+proveSequent = prove . setupProof
