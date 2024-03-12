@@ -180,11 +180,11 @@ getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen
 -}
 proofStep :: Consecutives -> Consecutives
 proofStep xs
-    | isClosed proof = [Closed]
-    | isOpen proof = [Open]
-    | [Open] `elem` map proofStep children = [Open]
+    | isClosed proof = pure Closed
+    | isOpen proof = pure Open
+    | pure Open `elem` map proofStep children = pure Open
     | not $ null unFinals = error "Checking proof outcome before finalising steps"
-    | otherwise = [Closed] -- Make sure we always hit this case, then clean up
+    | otherwise = pure Closed -- Make sure we always hit this case, then clean up
   where
     proof = map finalise xs
     isUnFinal (UnFinally _) = True
