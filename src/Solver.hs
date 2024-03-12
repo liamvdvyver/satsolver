@@ -1,5 +1,6 @@
 module Solver where
 
+import Data.List as List
 import qualified Data.Set as Set
 
 -- Should be user-defined
@@ -22,17 +23,18 @@ data ProofNode
     = Then ProofLine Alternates -- A Line which branches to several sub-proofs
     | UnFinally ProofLine -- Line which still may branch
     | Finally ProofLine -- Line which is known not to branch
-    | Open | Closed
+    | Open [Interpretations] -- Keep track of variable assignment to find counterexample
+    | Closed
     deriving (Show, Eq)
 
 type Alternates = [Consecutives] -- Branched Possibilities
 type Consecutives = [ProofNode]
 type Interpretations = (Set.Set Var, Set.Set Var) -- (trues, falses)
 
-{- | Get the (multiples) lines (for multiple branches) which follow from a line of a proof
+mergeInterpretations :: Interpretations -> Interpretations -> Interpretations
+mergeInterpretations (t1, f1) (t2, f2) = (Set.union t1 t2, Set.union f1 f2)
 
-Inner lists: consecutive lines in branch
-Outer lists: seperate branches
+{- | Get the (multiples) lines (for multiple branches) which follow from a line of a proof
 
 >>> branchLine $ T (FromVar P `Iff` FromVar Q)
 [[UnFinally (T (FromVar P)),UnFinally (T (FromVar Q))],[UnFinally (F (FromVar P)),UnFinally (F (FromVar Q))]]
@@ -168,7 +170,7 @@ getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen
 {- | Recursively prove
 
 >>> proofStep [(Finally $ T $ (FromVar P)), (UnFinally $ F $ (FromVar P) `And` (FromVar Q))]
-[Open]
+[Open [(fromList [P],fromList [Q])]]
 >>> proofStep [(Finally $ T $ (FromVar P)), (Finally $ F $ FromVar P), (Finally $ F $ FromVar Q)]
 [Closed]
 >>> proofStep [(Finally $ T $ (FromVar P)), (UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)] -- The child
@@ -181,8 +183,8 @@ getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen
 proofStep :: Consecutives -> Consecutives
 proofStep xs
     | isClosed proof = pure Closed
-    | isOpen proof = pure Open
-    | pure Open `elem` map proofStep children = pure Open
+    | isOpen proof = pure $ Open [interpretations]
+    | childIsOpen = pure $ Open mergedInterpretations
     | not $ null unFinals = error "Checking proof outcome before finalising steps"
     | otherwise = pure Closed -- Make sure we always hit this case, then clean up
   where
@@ -190,7 +192,22 @@ proofStep xs
     isUnFinal (UnFinally _) = True
     isUnFinal _ = False
     unFinals = filter isUnFinal proof
+
     children = getChildren proof
+
+    provenChildren = map proofStep children
+
+    isLiteralOpen [Open _] = True
+    isLiteralOpen _ = False
+    openChildren = filter isLiteralOpen provenChildren
+    childIsOpen = any isLiteralOpen provenChildren
+
+    interpretations = getInterpretations proof
+    fromNode [Open a] = a
+    fromNode _ = error "Not a singleton Open"
+
+    openChildInterpretations = map fromNode openChildren
+    mergedInterpretations = foldl List.union [] openChildInterpretations
 
 data Sequent = Entails Formula Formula
 
@@ -203,7 +220,7 @@ False
 -}
 isValid :: Sequent -> Bool
 isValid (Entails a b) = case proofStep proof of
-    [Open] -> False
+    [Open _] -> False
     [Closed] -> True
     _ -> error "Did not reduce"
   where
