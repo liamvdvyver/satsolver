@@ -44,16 +44,16 @@ mapFst f (a, b) = (f a, b)
 {- | Atom ::= Identifier | "T" | "F"
 
 >>> parseAtom [Identifier 'a']
-(FromVar (FromChar 'a'),[])
+(FromAtom (Var 'a'),[])
 >>> parseAtom [Truth]
-(FromVar ConstTrue,[])
+(FromAtom ConstTrue,[])
 -}
 parseAtom :: FormulaParser
 parseAtom [] = error "Parse error: empty atom"
-parseAtom (t : ts) = (FromVar atom, ts)
+parseAtom (t : ts) = (FromAtom atom, ts)
   where
     atom = case t of
-        (Identifier a) -> FromChar a
+        (Identifier a) -> Var a
         Truth -> ConstTrue
         Falsity -> ConstFalse
         _ -> error "Parse error: expected atom"
@@ -61,7 +61,7 @@ parseAtom (t : ts) = (FromVar atom, ts)
 {- | Grouping ::= "(" Formula ")"
 
 >>> parseGrouping [LeftParen, Identifier 'a', RightParen, Identifier 'b']
-(FromVar (FromChar 'a'),[Identifier 'b'])
+(FromAtom (Var 'a'),[Identifier 'b'])
 -}
 parseGrouping :: FormulaParser
 parseGrouping [] = error "Parse error: empty grouping"
@@ -73,9 +73,9 @@ parseGrouping _ = error "Parse error: expected '('"
 {- | Primary ::= Atom | Grouping
 
 >>> parsePrimary [Identifier 'a', Identifier 'b']
-(FromVar (FromChar 'a'),[Identifier 'b'])
+(FromAtom (Var 'a'),[Identifier 'b'])
 >>> parsePrimary [LeftParen, Identifier 'a', RightParen, Identifier 'b']
-(FromVar (FromChar 'a'),[Identifier 'b'])
+(FromAtom (Var 'a'),[Identifier 'b'])
 -}
 parsePrimary :: FormulaParser
 parsePrimary [] = error "Parse error: empty primary formula"

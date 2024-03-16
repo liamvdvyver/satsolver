@@ -5,11 +5,11 @@ import qualified Data.Set as Set
 
 -- Should be user-defined
 -- TODO: Assign ConstTrue to be True immediately, etc
-data Var = P | Q | R | S | FromChar Char | ConstTrue | ConstFalse
+data Atom = Var Char | ConstTrue | ConstFalse
     deriving (Show, Ord, Eq)
 
 data Formula
-    = FromVar Var
+    = FromAtom Atom
     | And Formula Formula
     | Or Formula Formula
     | Not Formula
@@ -30,12 +30,12 @@ data ProofNode
 
 type Alternates = [Consecutives] -- Branched Possibilities
 type Consecutives = [ProofNode]
-type Interpretations = (Set.Set Var, Set.Set Var) -- (trues, falses)
+type Interpretations = (Set.Set Atom, Set.Set Atom) -- (trues, falses)
 
 {- | Get the (multiples) lines (for multiple branches) which follow from a line of a proof
 
->>> branchLine $ T (FromVar P `Iff` FromVar Q)
-[[UnFinally (T (FromVar P)),UnFinally (T (FromVar Q))],[UnFinally (F (FromVar P)),UnFinally (F (FromVar Q))]]
+>>> branchLine $ T (FromAtom (Var 'P') `Iff` FromAtom (Var 'Q'))
+[[UnFinally (T (FromAtom (Var 'P'))),UnFinally (T (FromAtom (Var 'Q')))],[UnFinally (F (FromAtom (Var 'P'))),UnFinally (F (FromAtom (Var 'Q')))]]
 -}
 branchLine :: ProofLine -> Alternates
 branchLine line = map (map UnFinally) $ case line of
@@ -55,30 +55,30 @@ branchLine line = map (map UnFinally) $ case line of
 
 {- | Turn an unFinally into a subproof, i.e. a list containing Finally or a Then (applying one step of simplification)
 
->>> finalise $ UnFinally (T (FromVar P))
-Finally (T (FromVar P))
->>> finalise $ Finally (T (FromVar P))
-Finally (T (FromVar P))
->>> finalise $ UnFinally (T (Or (FromVar P) (FromVar Q)))
-Then (T (Or (FromVar P) (FromVar Q))) [[UnFinally (T (FromVar P))],[UnFinally (T (FromVar Q))]]
+>>> finalise $ UnFinally (T (FromAtom (Var 'P')))
+Finally (T (FromAtom (Var 'P')))
+>>> finalise $ Finally (T (FromAtom (Var 'P')))
+Finally (T (FromAtom (Var 'P')))
+>>> finalise $ UnFinally (T (Or (FromAtom (Var 'P')) (FromAtom (Var 'Q'))))
+Then (T (Or (FromAtom (Var 'P')) (FromAtom (Var 'Q')))) [[UnFinally (T (FromAtom (Var 'P')))],[UnFinally (T (FromAtom (Var 'Q')))]]
 -}
 finalise :: ProofNode -> ProofNode
-finalise (UnFinally f@(T (FromVar _))) = Finally f
-finalise (UnFinally f@(F (FromVar _))) = Finally f
+finalise (UnFinally f@(T (FromAtom _))) = Finally f
+finalise (UnFinally f@(F (FromAtom _))) = Finally f
 finalise (UnFinally line) = Then line $ branchLine line
 finalise x = x
 
 {- | Get a tuple of (True Vars, False Vars)
 
->>> getInterpretations [Finally $ T (FromVar P), Finally $ F (FromVar P), Finally $ T (FromVar Q), Finally $ T (FromVar P `Or` FromVar Q), UnFinally $ T (FromVar Q)]
-(fromList [P,Q],fromList [P])
+>>> getInterpretations [Finally $ T (FromAtom (Var 'P')), Finally $ F (FromAtom (Var 'P')), Finally $ T (FromAtom (Var 'Q')), Finally $ T (FromAtom (Var 'P') `Or` FromAtom (Var 'Q')), UnFinally $ T (FromAtom (Var 'Q'))]
+(fromList [Var 'P',Var 'Q'],fromList [Var 'P'])
 -}
 getInterpretations :: Consecutives -> Interpretations
 getInterpretations proofNodes = (trues, falses)
   where
     isInterpretation :: ProofNode -> Bool
-    isInterpretation (Finally (T (FromVar _))) = True
-    isInterpretation (Finally (F (FromVar _))) = True
+    isInterpretation (Finally (T (FromAtom _))) = True
+    isInterpretation (Finally (F (FromAtom _))) = True
     isInterpretation _ = False
 
     fromFinally :: ProofNode -> ProofLine
@@ -89,9 +89,9 @@ getInterpretations proofNodes = (trues, falses)
     isTrue (T _) = True
     isTrue (F _) = False
 
-    fromProofLine :: ProofLine -> Var
-    fromProofLine (T (FromVar a)) = a
-    fromProofLine (F (FromVar a)) = a
+    fromProofLine :: ProofLine -> Atom
+    fromProofLine (T (FromAtom a)) = a
+    fromProofLine (F (FromAtom a)) = a
     fromProofLine _ = error "Not an interpretation"
 
     interpretations = map fromFinally $ filter isInterpretation proofNodes
@@ -100,9 +100,9 @@ getInterpretations proofNodes = (trues, falses)
 
 {- | Check whether a branch is closed, based on assigned values
 
->>> isClosed [Finally $ T $ FromVar P, Finally $ F $ FromVar P]
+>>> isClosed [Finally $ T $ FromAtom (Var 'P'), Finally $ F $ FromAtom (Var 'P')]
 True
->>> isClosed [Finally $ T $ FromVar P, UnFinally $ F $ FromVar P]
+>>> isClosed [Finally $ T $ FromAtom (Var 'P'), UnFinally $ F $ FromAtom (Var 'P')]
 False
 -}
 isClosed :: Consecutives -> Bool
@@ -112,15 +112,15 @@ isClosed proofNodes = not $ Set.disjoint trues falses
 
 {- Check whether branch is open
 
->>> isOpen [Finally $ T $ FromVar P, Finally F $ FromVar Q]
+>>> isOpen [Finally $ T $ FromAtom (Var 'P'), Finally F $ FromAtom (Var 'Q')]
 True
->>> isOpen [Finally $ T $ FromVar P, Finally F $ FromVar P]
+>>> isOpen [Finally $ T $ FromAtom (Var 'P'), Finally F $ FromAtom (Var 'P')]
 False
->>> isOpen [Finally $ T $ FromVar P, Finally F $ FromVar Q, UnFinally ]
+>>> isOpen [Finally $ T $ FromAtom (Var 'P'), Finally F $ FromAtom (Var 'Q'), UnFinally ]
 False
->>> isOpen [(Finally $ T $ (FromVar P)), Then (F $ (FromVar P) `Or` (FromVar Q)) [[(UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)]]] -- The parent
+>>> isOpen [(Finally $ T $ (FromAtom (Var 'P'))), Then (F $ (FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) [[(UnFinally $ F $ FromAtom (Var 'P')), (UnFinally $ F $ FromAtom (Var 'Q'))]]] -- The parent
 False
->>> isOpen [(Finally $ T $ (FromVar P)), (UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)]
+>>> isOpen [(Finally $ T $ (FromAtom (Var 'P'))), (UnFinally $ F $ FromAtom (Var 'P')), (UnFinally $ F $ FromAtom (Var 'Q'))]
 False
 -}
 isOpen :: Consecutives -> Bool
@@ -140,8 +140,8 @@ nBranches _ = 1
 
 {- | Children for recursion
 
->>> getChildren [(Finally $ T $ (FromVar P)), Then (F $ (FromVar P) `Or` (FromVar Q)) [[(UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)]]]
-[[Finally (T (FromVar P)),UnFinally (F (FromVar P)),UnFinally (F (FromVar Q))]]
+>>> getChildren [(Finally $ T $ (FromAtom (Var 'P'))), Then (F $ (FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) [[(UnFinally $ F $ FromAtom (Var 'P')), (UnFinally $ F $ FromAtom (Var 'Q'))]]]
+[[Finally (T (FromAtom (Var 'P'))),UnFinally (F (FromAtom (Var 'P'))),UnFinally (F (FromAtom (Var 'Q')))]]
 -}
 getChildren :: Consecutives -> Alternates
 getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen)
@@ -164,15 +164,15 @@ getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen
 
 {- | Recursively prove
 
->>> prove [(Finally $ T $ (FromVar P)), (UnFinally $ F $ (FromVar P) `And` (FromVar Q))]
-[Open [(fromList [P],fromList [Q])]]
->>> prove [(Finally $ T $ (FromVar P)), (Finally $ F $ FromVar P), (Finally $ F $ FromVar Q)]
+>>> prove [(Finally $ T $ (FromAtom (Var 'P'))), (UnFinally $ F $ (FromAtom (Var 'P')) `And` (FromAtom (Var 'Q')))]
+[Open [(fromList [Var 'P'],fromList [Var 'Q'])]]
+>>> prove [(Finally $ T $ (FromAtom (Var 'P'))), (Finally $ F $ FromAtom (Var 'P')), (Finally $ F $ FromAtom (Var 'Q'))]
 [Closed]
->>> prove [(Finally $ T $ (FromVar P)), (UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)] -- The child
+>>> prove [(Finally $ T $ (FromAtom (Var 'P'))), (UnFinally $ F $ FromAtom (Var 'P')), (UnFinally $ F $ FromAtom (Var 'Q'))] -- The child
 [Closed]
->>> prove [(Finally $ T $ (FromVar P)), Then (F $ (FromVar P) `Or` (FromVar Q)) [[(UnFinally $ F $ FromVar P), (UnFinally $ F $ FromVar Q)]]] -- The parent
+>>> prove [(Finally $ T $ (FromAtom (Var 'P'))), Then (F $ (FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) [[(UnFinally $ F $ FromAtom (Var 'P')), (UnFinally $ F $ FromAtom (Var 'Q'))]]] -- The parent
 [Closed]
->>> prove [(Finally $ T $ (FromVar P)), (UnFinally $ F $ (FromVar P) `Or` (FromVar Q))]
+>>> prove [(Finally $ T $ (FromAtom (Var 'P'))), (UnFinally $ F $ (FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q')))]
 [Closed]
 -}
 prove :: Consecutives -> Consecutives
@@ -209,9 +209,9 @@ setupProof (Entails a b) = [UnFinally (T a), UnFinally (F b)]
 
 {- | Check if a sequent is valid
 
->>> isValid $ (Not $ (FromVar P) `Or` (FromVar Q)) `Entails` ((Not $ FromVar P) `And` (Not $ FromVar Q))
+>>> isValid $ (Not $ (FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) `Entails` ((Not $ FromAtom (Var 'P')) `And` (Not $ FromAtom (Var 'Q')))
 True
->>> isValid $ (((FromVar P) `Or` (FromVar Q)) `Iff` ((FromVar R) `Or` (FromVar S))) `Entails` (((FromVar P) `Iff` (FromVar R)) `Or` ((FromVar Q) `Iff` (FromVar S)))
+>>> isValid $ (((FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) `Iff` ((FromAtom (Var 'R')) `Or` (FromAtom (Var 'S')))) `Entails` (((FromAtom (Var 'P')) `Iff` (FromAtom (Var 'R'))) `Or` ((FromAtom (Var 'Q')) `Iff` (FromAtom (Var 'S'))))
 False
 -}
 isValid :: Sequent -> Bool
@@ -222,7 +222,7 @@ isValid s = case proveSequent s of
 
 -- | Prove a sequent
 --
--- >>> proveSequent $ (((FromVar P) `Or` (FromVar Q)) `Iff` ((FromVar R) `Or` (FromVar S))) `Entails` (((FromVar P) `Iff` (FromVar R)) `Or` ((FromVar Q) `Iff` (FromVar S)))
--- [Open [(fromList [P,S],fromList [Q,R]),(fromList [Q,R],fromList [P,S])]]
+-- >>> proveSequent $ (((FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) `Iff` ((FromAtom (Var 'R')) `Or` (FromAtom (Var 'S')))) `Entails` (((FromAtom (Var 'P')) `Iff` (FromAtom (Var 'R'))) `Or` ((FromAtom (Var 'Q')) `Iff` (FromAtom (Var 'S'))))
+-- [Open [(fromList [Var 'P',Var 'S'],fromList [Var 'Q',Var 'R']),(fromList [Var 'Q',Var 'R'],fromList [Var 'P',Var 'S'])]]
 proveSequent :: Sequent -> Consecutives
 proveSequent = prove . setupProof
