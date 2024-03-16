@@ -6,6 +6,8 @@ Simple sequent checker, grammar and recursive descent parser for propositional l
 
 ## Usage
 
+e.g. `satsolve '!(x&y)|-!x|!y'`
+
 ## Grammar
 
 Inputs to be parsed should be sequents of the form:
