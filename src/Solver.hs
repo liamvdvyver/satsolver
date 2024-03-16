@@ -203,18 +203,18 @@ prove xs
     openChildInterpretations = map fromNode openChildren
     mergedInterpretations = foldl List.union [] openChildInterpretations
 
-data Sequent = Entails Formula Formula
+data Sequent = Entails [Formula] Formula
     deriving Show
 
 -- | Setup a proof from a sequent
 setupProof :: Sequent -> Consecutives
-setupProof (Entails a b) = [UnFinally (T a), UnFinally (F b)]
+setupProof (Entails a b) = UnFinally (F b) : [UnFinally (T x)| x <- a]
 
 {- | Check if a sequent is valid
 
->>> isValid $ (Not $ (FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) `Entails` ((Not $ FromAtom (Var 'P')) `And` (Not $ FromAtom (Var 'Q')))
+>>> isValid $ [(Not $ (FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q')))] `Entails` ((Not $ FromAtom (Var 'P')) `And` (Not $ FromAtom (Var 'Q')))
 True
->>> isValid $ (((FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) `Iff` ((FromAtom (Var 'R')) `Or` (FromAtom (Var 'S')))) `Entails` (((FromAtom (Var 'P')) `Iff` (FromAtom (Var 'R'))) `Or` ((FromAtom (Var 'Q')) `Iff` (FromAtom (Var 'S'))))
+>>> isValid $ [(((FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) `Iff` ((FromAtom (Var 'R')) `Or` (FromAtom (Var 'S'))))] `Entails` (((FromAtom (Var 'P')) `Iff` (FromAtom (Var 'R'))) `Or` ((FromAtom (Var 'Q')) `Iff` (FromAtom (Var 'S'))))
 False
 -}
 isValid :: Sequent -> Bool
@@ -225,7 +225,7 @@ isValid s = case proveSequent s of
 
 -- | Prove a sequent
 --
--- >>> proveSequent $ (((FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) `Iff` ((FromAtom (Var 'R')) `Or` (FromAtom (Var 'S')))) `Entails` (((FromAtom (Var 'P')) `Iff` (FromAtom (Var 'R'))) `Or` ((FromAtom (Var 'Q')) `Iff` (FromAtom (Var 'S'))))
+-- >>> proveSequent $ [(((FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) `Iff` ((FromAtom (Var 'R')) `Or` (FromAtom (Var 'S'))))] `Entails` (((FromAtom (Var 'P')) `Iff` (FromAtom (Var 'R'))) `Or` ((FromAtom (Var 'Q')) `Iff` (FromAtom (Var 'S'))))
 -- [Open [(fromList [Var 'P',Var 'S',ConstTrue],fromList [Var 'Q',Var 'R',ConstFalse]),(fromList [Var 'Q',Var 'R',ConstTrue],fromList [Var 'P',Var 'S',ConstFalse])]]
 proveSequent :: Sequent -> Consecutives
 proveSequent = prove . setupProof

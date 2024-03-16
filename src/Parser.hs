@@ -1,4 +1,4 @@
-module Parser(parseSequent, parseFormula, tokenise) where
+module Parser (parseSequent, parseFormula, tokenise) where
 
 import Solver
 
@@ -15,6 +15,7 @@ data Token
     | Turnstile
     | Truth
     | Falsity
+    | Comma
     deriving (Show, Eq)
 
 tokenise :: String -> [Token]
@@ -33,6 +34,7 @@ tokenise (x : xs) = matched : tokenise xs
         '>' -> RightAngle
         'T' -> Truth
         'F' -> Falsity
+        ',' -> Comma
         c -> Identifier c
 
 type FormulaParser = [Token] -> (Formula, [Token])
@@ -134,9 +136,15 @@ parseFormula = parseEquivalence
 
 -- | Sequent ::= Formula ("," Formula)* "|-" Formula
 parseSequent :: [Token] -> Sequent
-parseSequent ts = case parseFormula ts of
-    (leftFormula, Turnstile : xs) -> case parseFormula xs of
-        (rightFormula, []) -> leftFormula `Entails` rightFormula
-        (_, _) -> error "Parse error: trailing tokens in RHS of sequent"
-    (_, _ : _) -> error "Parse error: trailing tokens in LHS of sequent"
-    (_, []) -> error "Parse error: empty sequent"
+parseSequent ts = Entails leftFormulae finalRightFormula
+  where
+    (leftFormulae, finalRightFormula) = parseSequent' ts
+    parseSequent' :: [Token] -> ([Formula], Formula)
+    parseSequent' ts' = case parseFormula ts' of
+        (leftFormula, Comma : xs) -> mapFst (leftFormula :) $ parseSequent' xs
+        (leftFormula, Turnstile : xs) -> case parseFormula xs of
+            (rightFormula, []) -> ([leftFormula], rightFormula)
+            (_, _) -> error "Parse error: trailing tokens in RHS of sequent"
+        (_, _ : _) -> error "Parse error: trailing tokens in LHS of sequent"
+        (_, []) -> error "Parse error: empty sequent"
+
