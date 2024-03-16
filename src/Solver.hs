@@ -71,7 +71,7 @@ finalise x = x
 {- | Get a tuple of (True Vars, False Vars)
 
 >>> getInterpretations [Finally $ T (FromAtom (Var 'P')), Finally $ F (FromAtom (Var 'P')), Finally $ T (FromAtom (Var 'Q')), Finally $ T (FromAtom (Var 'P') `Or` FromAtom (Var 'Q')), UnFinally $ T (FromAtom (Var 'Q'))]
-(fromList [Var 'P',Var 'Q'],fromList [Var 'P'])
+(fromList [Var 'P',Var 'Q',ConstTrue],fromList [Var 'P',ConstFalse])
 -}
 getInterpretations :: Consecutives -> Interpretations
 getInterpretations proofNodes = (trues, falses)
@@ -95,8 +95,11 @@ getInterpretations proofNodes = (trues, falses)
     fromProofLine _ = error "Not an interpretation"
 
     interpretations = map fromFinally $ filter isInterpretation proofNodes
-    trues = Set.fromList $ map fromProofLine $ filter isTrue interpretations
-    falses = Set.fromList $ map fromProofLine $ filter (not . isTrue) interpretations
+    trueVars = Set.fromList $ map fromProofLine $ filter isTrue interpretations
+    falseVars = Set.fromList $ map fromProofLine $ filter (not . isTrue) interpretations
+
+    trues = Set.union trueVars $ Set.fromList [ConstTrue]
+    falses = Set.union falseVars $ Set.fromList [ConstFalse]
 
 {- | Check whether a branch is closed, based on assigned values
 
@@ -165,7 +168,7 @@ getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen
 {- | Recursively prove
 
 >>> prove [(Finally $ T $ (FromAtom (Var 'P'))), (UnFinally $ F $ (FromAtom (Var 'P')) `And` (FromAtom (Var 'Q')))]
-[Open [(fromList [Var 'P'],fromList [Var 'Q'])]]
+[Open [(fromList [Var 'P',ConstTrue],fromList [Var 'Q',ConstFalse])]]
 >>> prove [(Finally $ T $ (FromAtom (Var 'P'))), (Finally $ F $ FromAtom (Var 'P')), (Finally $ F $ FromAtom (Var 'Q'))]
 [Closed]
 >>> prove [(Finally $ T $ (FromAtom (Var 'P'))), (UnFinally $ F $ FromAtom (Var 'P')), (UnFinally $ F $ FromAtom (Var 'Q'))] -- The child
@@ -223,6 +226,6 @@ isValid s = case proveSequent s of
 -- | Prove a sequent
 --
 -- >>> proveSequent $ (((FromAtom (Var 'P')) `Or` (FromAtom (Var 'Q'))) `Iff` ((FromAtom (Var 'R')) `Or` (FromAtom (Var 'S')))) `Entails` (((FromAtom (Var 'P')) `Iff` (FromAtom (Var 'R'))) `Or` ((FromAtom (Var 'Q')) `Iff` (FromAtom (Var 'S'))))
--- [Open [(fromList [Var 'P',Var 'S'],fromList [Var 'Q',Var 'R']),(fromList [Var 'Q',Var 'R'],fromList [Var 'P',Var 'S'])]]
+-- [Open [(fromList [Var 'P',Var 'S',ConstTrue],fromList [Var 'Q',Var 'R',ConstFalse]),(fromList [Var 'Q',Var 'R',ConstTrue],fromList [Var 'P',Var 'S',ConstFalse])]]
 proveSequent :: Sequent -> Consecutives
 proveSequent = prove . setupProof
