@@ -4,7 +4,8 @@ import Data.List as List
 import qualified Data.Set as Set
 
 -- Should be user-defined
-data Var = P | Q | R | S | FromString String
+-- TODO: Assign ConstTrue to be True immediately, etc
+data Var = P | Q | R | S | FromChar Char | ConstTrue | ConstFalse
     deriving (Show, Ord, Eq)
 
 data Formula
@@ -132,6 +133,7 @@ isOpen proofNodes = not (isClosed proofNodes) && fullyExpanded proofNodes
     fullyExpanded (_ : xs) = fullyExpanded xs
 
 -- | Number of branches to be explored when expanding a Then
+-- TODO:  Use this to branch as late as possible
 nBranches :: ProofNode -> Int
 nBranches (Then _ b) = length b
 nBranches _ = 1
@@ -199,6 +201,7 @@ prove xs
     mergedInterpretations = foldl List.union [] openChildInterpretations
 
 data Sequent = Entails Formula Formula
+    deriving Show
 
 -- | Setup a proof from a sequent
 setupProof :: Sequent -> Consecutives

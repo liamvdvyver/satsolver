@@ -17,7 +17,7 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  Solver
+    exposed-modules:  Solver, Parser
     -- other-modules:
     -- other-extensions:
     build-depends:    base ^>=4.16.4.0, containers
