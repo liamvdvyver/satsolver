@@ -46,7 +46,7 @@ branchLine line = map (map UnFinally) $ case line of
     (T (Or a b)) -> [[T a], [T b]]
     (F (Or a b)) -> [[F a, F b]]
     (T (Implies a b)) -> [[F a], [T a, T b]]
-    (F (Implies a b)) -> [[T a], [F b]]
+    (F (Implies a b)) -> [[T a, F b]]
     (T (Iff a b)) -> [[T a, T b], [F a, F b]]
     (F (Iff a b)) -> [[T a, F b], [F a, T b]]
     -- Non-simplifying proof lines
