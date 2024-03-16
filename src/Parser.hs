@@ -135,16 +135,27 @@ parseFormula :: FormulaParser
 parseFormula = parseEquivalence
 
 -- | Sequent ::= Formula ("," Formula)* "|-" Formula
+--
+-- >>> parseSequent $ tokenise $ "X|-a"
+-- Entails [FromAtom (Var 'X')] (FromAtom (Var 'a'))
+-- >>> parseSequent $ tokenise $ "X,Y|-a"
+-- Entails [FromAtom (Var 'X'),FromAtom (Var 'Y')] (FromAtom (Var 'a'))
+-- >>> parseSequent $ tokenise $ "|-a"
+-- Entails [] (FromAtom (Var 'a'))
 parseSequent :: [Token] -> Sequent
 parseSequent ts = Entails leftFormulae finalRightFormula
-  where
-    (leftFormulae, finalRightFormula) = parseSequent' ts
-    parseSequent' :: [Token] -> ([Formula], Formula)
-    parseSequent' ts' = case parseFormula ts' of
-        (leftFormula, Comma : xs) -> mapFst (leftFormula :) $ parseSequent' xs
-        (leftFormula, Turnstile : xs) -> case parseFormula xs of
-            (rightFormula, []) -> ([leftFormula], rightFormula)
-            (_, _) -> error "Parse error: trailing tokens in RHS of sequent"
-        (_, _ : _) -> error "Parse error: trailing tokens in LHS of sequent"
-        (_, []) -> error "Parse error: empty sequent"
+    where
+    (leftFormulae, finalRightFormula) = parseLhs [] ts
 
+    parseLhs :: [Formula] -> [Token] -> ([Formula], Formula)
+    parseLhs parsed (Turnstile:ts') = (parsed, parseRhs ts')
+    parseLhs parsed (Comma:ts') = parseLhs parsed ts'
+    parseLhs [] ts' = parseLhs [parsed'] remainder
+        where (parsed', remainder) = parseFormula ts'
+    parseLhs parsed ts' = parseLhs (parsed ++ [parsed']) remainder
+        where (parsed', remainder) = parseFormula ts'
+
+    parseRhs :: [Token] -> Formula
+    parseRhs ts' = case parseFormula ts' of
+        (f, []) -> f
+        (_, _) -> error "Parse Error: Trailing tokens in RHS of sequent"
