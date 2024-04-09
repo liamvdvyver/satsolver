@@ -1,28 +1,8 @@
 module Solver where
 
+import Types
 import Data.List as List
 import qualified Data.Set as Set
-
--- Objects are just nullary functions
-data Term = Function String Int [Term] | Var String
-    deriving (Show, Ord, Eq)
-
--- Propositional variables are just nullary predicates
--- We will reserve nullary predicates "T" and "F"
-data Predicate = Predicate String Int [Term]
-    deriving (Show, Ord, Eq)
-
-data Equality = Equality Term Term
-
-data Formula
-    = FromPredicate Predicate
-    | And Formula Formula
-    | Or Formula Formula
-    | Not Formula
-    | Implies Formula Formula
-    | Iff Formula Formula
-    | Predication Predicate [Term]
-    deriving (Show, Ord, Eq)
 
 data ProofLine = T Formula | F Formula
     deriving (Show, Eq)
@@ -37,7 +17,7 @@ data ProofNode
 
 type Alternates = [Consecutives] -- Branched Possibilities
 type Consecutives = [ProofNode]
-type Interpretations = (Set.Set Predicate, Set.Set Predicate) -- (trues, falses)
+type Interpretations = (Set.Set Formula, Set.Set Formula) -- (trues, falses)
 
 {- | Get the (multiples) lines (for multiple branches) which follow from a line of a proof
 
@@ -209,9 +189,6 @@ prove xs
 
     openChildInterpretations = map fromNode openChildren
     mergedInterpretations = foldl List.union [] openChildInterpretations
-
-data Sequent = Entails [Formula] Formula
-    deriving Show
 
 -- | Setup a proof from a sequent
 setupProof :: Sequent -> Consecutives

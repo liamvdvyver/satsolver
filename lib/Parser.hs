@@ -1,6 +1,6 @@
 module Parser (parseSequent, parseFormula, tokenise) where
 
-import Solver
+import Types
 
 -- | Identifier ::= Char
 data Token
