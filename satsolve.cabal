@@ -3,7 +3,7 @@ name:               satsolve
 version:            0.1.0.0
 -- synopsis:
 -- description:
-license:            MIT
+-- license:            GPL-3
 license-file:       LICENSE
 author:             Liam van der Vyver
 maintainer:         91105007+liamvdvyver@users.noreply.github.com
