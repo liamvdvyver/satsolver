@@ -10,8 +10,8 @@ Function ::= Identifier "(" Function ("," Function)* ")" | Variable
 Predicate ::= Identifier ("(" Function ("," Function)* ")")?
 Grouping ::= "(" Formula ")" | Predicate
 Negation ::= "!" Negation | Grouping
-Qualification ::= ("E" | "V") Variable Qualification | Negation
-Conjunction ::= Qualification ("&" Qualification)*
+Quantification ::= ("E" | "V") Variable Quantification | Negation
+Conjunction ::= Quantification ("&" Quantification)*
 Disjunction ::= Conjunction ("|" Conjunction)*
 Implication ::= Disjuntion (">" Disjunction)*
 Equivalence ::= Implication ("=" Implication)*
@@ -117,9 +117,9 @@ parseNegation [] = error "Parse error: empty negation"
 parseNegation (Bang : ts) = mapFst Not $ parseNegation ts
 parseNegation ts = parseGrouping ts
 
-parseQualification :: FormulaParser
-parseQualification [] = error "Parse error: empty qualification"
-parseQualification tokens@(t : ts) =
+parseQuantification :: FormulaParser
+parseQuantification [] = error "Parse error: empty qualification"
+parseQuantification tokens@(t : ts) =
     let
         (var, xs') = parseVar ts
         (formula, remainder) = parseNegation xs'
@@ -153,7 +153,7 @@ binaryParse ts operator constructor nextParser
     (rightFormula, rightRemainder) = nextParser tailLeftRemainder
 
 parseConjunction :: FormulaParser
-parseConjunction ts = binaryParse ts Ampersand And parseQualification
+parseConjunction ts = binaryParse ts Ampersand And parseQuantification
 
 parseDisjunction :: FormulaParser
 parseDisjunction ts = binaryParse ts Pipe Or parseConjunction
