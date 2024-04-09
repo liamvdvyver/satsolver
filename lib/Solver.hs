@@ -21,8 +21,8 @@ type Interpretations = (Set.Set Formula, Set.Set Formula) -- (trues, falses)
 
 {- | Get the (multiples) lines (for multiple branches) which follow from a line of a proof
 
->>> branchLine $ T (FromPredicate (Predicate "P" 0 []) `Iff` FromPredicate (Predicate "Q" 0 []))
-[[UnFinally (T (FromPredicate (Predicate "P" 0 []))),UnFinally (T (FromPredicate (Predicate "Q" 0 [])))],[UnFinally (F (FromPredicate (Predicate "P" 0 []))),UnFinally (F (FromPredicate (Predicate "Q" 0 [])))]]
+>>> branchLine $ T (Predication (Predicate "P" 0) [] `Iff` Predication (Predicate "Q" 0) [])
+[[UnFinally (T (Predication (Predicate "P" 0) [])),UnFinally (T (Predication (Predicate "Q" 0) []))],[UnFinally (F (Predication (Predicate "P" 0) [])),UnFinally (F (Predication (Predicate "Q" 0) []))]]
 -}
 branchLine :: ProofLine -> Alternates
 branchLine line = map (map UnFinally) $ case line of
@@ -42,30 +42,30 @@ branchLine line = map (map UnFinally) $ case line of
 
 {- | Turn an unFinally into a subproof, i.e. a list containing Finally or a Then (applying one step of simplification)
 
->>> finalise $ UnFinally (T (FromPredicate (Predicate "P" 0 [])))
-Finally (T (FromPredicate (Predicate "P" 0 [])))
->>> finalise $ Finally (T (FromPredicate (Predicate "P" 0 [])))
-Finally (T (FromPredicate (Predicate "P" 0 [])))
->>> finalise $ UnFinally (T (Or (FromPredicate (Predicate "P" 0 [])) (FromPredicate (Predicate "Q" 0 []))))
-Then (T (Or (FromPredicate (Predicate "P" 0 [])) (FromPredicate (Predicate "Q" 0 [])))) [[UnFinally (T (FromPredicate (Predicate "P" 0 [])))],[UnFinally (T (FromPredicate (Predicate "Q" 0 [])))]]
+>>> finalise $ UnFinally (T (Predication (Predicate "P" 0) []))
+Finally (T (Predication (Predicate "P" 0) []))
+>>> finalise $ Finally (T (Predication (Predicate "P" 0) []))
+Finally (T (Predication (Predicate "P" 0) []))
+>>> finalise $ UnFinally (T (Or (Predication (Predicate "P" 0) []) (Predication (Predicate "Q" 0) [])))
+Then (T (Or (Predication (Predicate "P" 0) []) (Predication (Predicate "Q" 0) []))) [[UnFinally (T (Predication (Predicate "P" 0) []))],[UnFinally (T (Predication (Predicate "Q" 0) []))]]
 -}
 finalise :: ProofNode -> ProofNode
-finalise (UnFinally f@(T (FromPredicate _))) = Finally f
-finalise (UnFinally f@(F (FromPredicate _))) = Finally f
+finalise (UnFinally f@(T (Predication _ _))) = Finally f
+finalise (UnFinally f@(F (Predication _ _))) = Finally f
 finalise (UnFinally line) = Then line $ branchLine line
 finalise x = x
 
 {- | Get a tuple of (True Vars, False Vars)
 
->>> getInterpretations [Finally $ T (FromPredicate (Predicate "P" 0 [])), Finally $ F (FromPredicate (Predicate "P" 0 [])), Finally $ T (FromPredicate (Predicate "Q" 0 [])), Finally $ T (FromPredicate (Predicate "P" 0 []) `Or` FromPredicate (Predicate "Q" 0 [])), UnFinally $ T (FromPredicate (Predicate "Q" 0 []))]
-(fromList [Predicate "P" 0 [],Predicate "Q" 0 [],Predicate "T" 0 []],fromList [Predicate "F" 0 [],Predicate "P" 0 []])
+>>> getInterpretations [Finally $ T (Predication (Predicate "P" 0) []), Finally $ F (Predication (Predicate "P" 0) []), Finally $ T (Predication (Predicate "Q" 0) []), Finally $ T (Predication (Predicate "P" 0) [] `Or` Predication (Predicate "Q" 0) []), UnFinally $ T (Predication (Predicate "Q" 0) [])]
+(fromList [Predication (Predicate "P" 0) [],Predication (Predicate "Q" 0) [],Predication (Predicate "T" 0) []],fromList [Predication (Predicate "F" 0) [],Predication (Predicate "P" 0) []])
 -}
 getInterpretations :: Consecutives -> Interpretations
 getInterpretations proofNodes = (trues, falses)
   where
     isInterpretation :: ProofNode -> Bool
-    isInterpretation (Finally (T (FromPredicate _))) = True
-    isInterpretation (Finally (F _)) = True
+    isInterpretation (Finally (T (Predication _ _))) = True
+    isInterpretation (Finally (F (Predication _ _))) = True
     isInterpretation _ = False
 
     fromFinally :: ProofNode -> ProofLine
@@ -76,23 +76,23 @@ getInterpretations proofNodes = (trues, falses)
     isTrue (T _) = True
     isTrue (F _) = False
 
-    fromProofLine :: ProofLine -> Predicate
-    fromProofLine (T (FromPredicate a)) = a
-    fromProofLine (F (FromPredicate a)) = a
-    fromProofLine _ = error "Not an interpretation"
+    fromProofLine :: ProofLine -> Formula
+    fromProofLine (T a@(Predication _ _)) = a
+    fromProofLine (F a@(Predication _ _)) = a
+    fromProofLine ln = error $ "Not an interpretation" ++ show ln
 
     interpretations = map fromFinally $ filter isInterpretation proofNodes
     trueVars = Set.fromList $ map fromProofLine $ filter isTrue interpretations
     falseVars = Set.fromList $ map fromProofLine $ filter (not . isTrue) interpretations
 
-    trues = Set.union trueVars $ Set.fromList [Predicate "T" 0 []]
-    falses = Set.union falseVars $ Set.fromList [Predicate "F" 0 []]
+    trues = Set.union trueVars $ Set.fromList [Predication (Predicate "T" 0 ) []]
+    falses = Set.union falseVars $ Set.fromList [Predication (Predicate "F" 0 ) []]
 
 {- | Check whether a branch is closed, based on assigned values
 
->>> isClosed [Finally $ T $ FromPredicate (Predicate "P" 0 []), Finally $ F $ FromPredicate (Predicate "P" 0 [])]
+>>> isClosed [Finally $ T $ Predication (Predicate "P" 0) [], Finally $ F $ Predication (Predicate "P" 0) []]
 True
->>> isClosed [Finally $ T $ FromPredicate (Predicate "P" 0 []), UnFinally $ F $ FromPredicate (Predicate "P" 0 [])]
+>>> isClosed [Finally $ T $ Predication (Predicate "P" 0) [], UnFinally $ F $ Predication (Predicate "P" 0) []]
 False
 -}
 isClosed :: Consecutives -> Bool
@@ -102,15 +102,15 @@ isClosed proofNodes = not $ Set.disjoint trues falses
 
 {- Check whether branch is open
 
->>> isOpen [Finally $ T $ FromPredicate (Predicate "P" 0 []), Finally F $ FromPredicate (Predicate "Q" 0 [])]
+>>> isOpen [Finally $ T $ Predication (Predicate "P" 0) [], Finally F $ Predication (Predicate "Q" 0) []]
 True
->>> isOpen [Finally $ T $ FromPredicate (Predicate "P" 0 []), Finally F $ FromPredicate (Predicate "P" 0 [])]
+>>> isOpen [Finally $ T $ Predication (Predicate "P" 0) [], Finally F $ Predication (Predicate "P" 0) []]
 False
->>> isOpen [Finally $ T $ FromPredicate (Predicate "P" 0 []), Finally F $ FromPredicate (Predicate "Q" 0 []), UnFinally ]
+>>> isOpen [Finally $ T $ Predication (Predicate "P" 0) [], Finally F $ Predication (Predicate "Q" 0) [], UnFinally ]
 False
->>> isOpen [(Finally $ T $ (FromPredicate (Predicate "P" 0 []))), Then (F $ (FromPredicate (Predicate "P" 0 [])) `Or` (FromPredicate (Predicate "Q" 0 []))) [[(UnFinally $ F $ FromPredicate (Predicate "P" 0 [])), (UnFinally $ F $ FromPredicate (Predicate "Q" 0 []))]]] -- The parent
+>>> isOpen [(Finally $ T $ (Predication (Predicate "P" 0) [])), Then (F $ (Predication (Predicate "P" 0) []) `Or` (Predication (Predicate "Q" 0) [])) [[(UnFinally $ F $ Predication (Predicate "P" 0) []), (UnFinally $ F $ Predication (Predicate "Q" 0) [])]]] -- The parent
 False
->>> isOpen [(Finally $ T $ (FromPredicate (Predicate "P" 0 []))), (UnFinally $ F $ FromPredicate (Predicate "P" 0 [])), (UnFinally $ F $ FromPredicate (Predicate "Q" 0 []))]
+>>> isOpen [(Finally $ T $ (Predication (Predicate "P" 0) [])), (UnFinally $ F $ Predication (Predicate "P" 0) []), (UnFinally $ F $ Predication (Predicate "Q" 0) [])]
 False
 -}
 isOpen :: Consecutives -> Bool
@@ -130,8 +130,8 @@ nBranches _ = 1
 
 {- | Children for recursion
 
->>> getChildren [(Finally $ T $ (FromPredicate (Predicate "P" 0 []))), Then (F $ (FromPredicate (Predicate "P" 0 [])) `Or` (FromPredicate (Predicate "Q" 0 []))) [[(UnFinally $ F $ FromPredicate (Predicate "P" 0 [])), (UnFinally $ F $ FromPredicate (Predicate "Q" 0 []))]]]
-[[Finally (T (FromPredicate (Predicate "P" 0 []))),UnFinally (F (FromPredicate (Predicate "P" 0 []))),UnFinally (F (FromPredicate (Predicate "Q" 0 [])))]]
+>>> getChildren [(Finally $ T $ (Predication (Predicate "P" 0) [])), Then (F $ (Predication (Predicate "P" 0) []) `Or` (Predication (Predicate "Q" 0) [])) [[(UnFinally $ F $ Predication (Predicate "P" 0) []), (UnFinally $ F $ Predication (Predicate "Q" 0) [])]]]
+[[Finally (T (Predication (Predicate "P" 0) [])),UnFinally (F (Predication (Predicate "P" 0) [])),UnFinally (F (Predication (Predicate "Q" 0) []))]]
 -}
 getChildren :: Consecutives -> Alternates
 getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen)
@@ -154,15 +154,15 @@ getChildren proofNodes = map (\x -> finals ++ x ++ tailThens) (fromThen headThen
 
 {- | Recursively prove
 
->>> prove [(Finally $ T $ (FromPredicate (Predicate "P" 0 []))), (UnFinally $ F $ (FromPredicate (Predicate "P" 0 [])) `And` (FromPredicate (Predicate "Q" 0 [])))]
-[Open [(fromList [Predicate "P" 0 [],Predicate "T" 0 []],fromList [Predicate "F" 0 [],Predicate "Q" 0 []])]]
->>> prove [(Finally $ T $ (FromPredicate (Predicate "P" 0 []))), (Finally $ F $ FromPredicate (Predicate "P" 0 [])), (Finally $ F $ FromPredicate (Predicate "Q" 0 []))]
+>>> prove [(Finally $ T $ (Predication (Predicate "P" 0) [])), (UnFinally $ F $ (Predication (Predicate "P" 0) []) `And` (Predication (Predicate "Q" 0) []))]
+[Open [(fromList [Predication (Predicate "P" 0) [],Predication (Predicate "T" 0) []],fromList [Predication (Predicate "F" 0) [],Predication (Predicate "Q" 0) []])]]
+>>> prove [(Finally $ T $ (Predication (Predicate "P" 0) [])), (Finally $ F $ Predication (Predicate "P" 0) []), (Finally $ F $ Predication (Predicate "Q" 0) [])]
 [Closed]
->>> prove [(Finally $ T $ (FromPredicate (Predicate "P" 0 []))), (UnFinally $ F $ FromPredicate (Predicate "P" 0 [])), (UnFinally $ F $ FromPredicate (Predicate "Q" 0 []))] -- The child
+>>> prove [(Finally $ T $ (Predication (Predicate "P" 0) [])), (UnFinally $ F $ Predication (Predicate "P" 0) []), (UnFinally $ F $ Predication (Predicate "Q" 0) [])] -- The child
 [Closed]
->>> prove [(Finally $ T $ (FromPredicate (Predicate "P" 0 []))), Then (F $ (FromPredicate (Predicate "P" 0 [])) `Or` (FromPredicate (Predicate "Q" 0 []))) [[(UnFinally $ F $ FromPredicate (Predicate "P" 0 [])), (UnFinally $ F $ FromPredicate (Predicate "Q" 0 []))]]] -- The parent
+>>> prove [(Finally $ T $ (Predication (Predicate "P" 0) [])), Then (F $ (Predication (Predicate "P" 0) []) `Or` (Predication (Predicate "Q" 0) [])) [[(UnFinally $ F $ Predication (Predicate "P" 0) []), (UnFinally $ F $ Predication (Predicate "Q" 0) [])]]] -- The parent
 [Closed]
->>> prove [(Finally $ T $ (FromPredicate (Predicate "P" 0 []))), (UnFinally $ F $ (FromPredicate (Predicate "P" 0 [])) `Or` (FromPredicate (Predicate "Q" 0 [])))]
+>>> prove [(Finally $ T $ (Predication (Predicate "P" 0) [])), (UnFinally $ F $ (Predication (Predicate "P" 0) []) `Or` (Predication (Predicate "Q" 0) []))]
 [Closed]
 -}
 prove :: Consecutives -> Consecutives
@@ -196,9 +196,9 @@ setupProof (Entails a b) = UnFinally (F b) : [UnFinally (T x)| x <- a]
 
 {- | Check if a sequent is valid
 
->>> isValid $ [(Not $ (FromPredicate (Predicate "P" 0 [])) `Or` (FromPredicate (Predicate "Q" 0 [])))] `Entails` ((Not $ FromPredicate (Predicate "P" 0 [])) `And` (Not $ FromPredicate (Predicate "Q" 0 [])))
+>>> isValid $ [(Not $ (Predication (Predicate "P" 0) []) `Or` (Predication (Predicate "Q" 0) []))] `Entails` ((Not $ Predication (Predicate "P" 0) []) `And` (Not $ Predication (Predicate "Q" 0) []))
 True
->>> isValid $ [(((FromPredicate (Predicate "P" 0 [])) `Or` (FromPredicate (Predicate "Q" 0 []))) `Iff` ((FromPredicate (Predicate "R" 0 [])) `Or` (FromPredicate (Predicate "S" 0 []))))] `Entails` (((FromPredicate (Predicate "P" 0 [])) `Iff` (FromPredicate (Predicate "R" 0 []))) `Or` ((FromPredicate (Predicate "Q" 0 [])) `Iff` (FromPredicate (Predicate "S" 0 []))))
+>>> isValid $ [(((Predication (Predicate "P" 0) []) `Or` (Predication (Predicate "Q" 0) [])) `Iff` ((Predication (Predicate "R" 0) []) `Or` (Predication (Predicate "S" 0) [])))] `Entails` (((Predication (Predicate "P" 0) []) `Iff` (Predication (Predicate "R" 0) [])) `Or` ((Predication (Predicate "Q" 0) []) `Iff` (Predication (Predicate "S" 0) [])))
 False
 -}
 isValid :: Sequent -> Bool
@@ -209,7 +209,7 @@ isValid s = case proveSequent s of
 
 -- | Prove a sequent
 --
--- >>> proveSequent $ [(((FromPredicate (Predicate "P" 0 [])) `Or` (FromPredicate (Predicate "Q" 0 []))) `Iff` ((FromPredicate (Predicate "R" 0 [])) `Or` (FromPredicate (Predicate "S" 0 []))))] `Entails` (((FromPredicate (Predicate "P" 0 [])) `Iff` (FromPredicate (Predicate "R" 0 []))) `Or` ((FromPredicate (Predicate "Q" 0 [])) `Iff` (FromPredicate (Predicate "S" 0 []))))
--- [Open [(fromList [Predicate "P" 0 [],Predicate "S" 0 [],Predicate "T" 0 []],fromList [Predicate "F" 0 [],Predicate "Q" 0 [],Predicate "R" 0 []]),(fromList [Predicate "Q" 0 [],Predicate "R" 0 [],Predicate "T" 0 []],fromList [Predicate "F" 0 [],Predicate "P" 0 [],Predicate "S" 0 []])]]
+-- >>> proveSequent $ [(((Predication (Predicate "P" 0) []) `Or` (Predication (Predicate "Q" 0) [])) `Iff` ((Predication (Predicate "R" 0) []) `Or` (Predication (Predicate "S" 0) [])))] `Entails` (((Predication (Predicate "P" 0) []) `Iff` (Predication (Predicate "R" 0) [])) `Or` ((Predication (Predicate "Q" 0) []) `Iff` (Predication (Predicate "S" 0) [])))
+-- [Open [(fromList [Predication (Predicate "P" 0) [],Predication (Predicate "S" 0) [],Predication (Predicate "T" 0) []],fromList [Predication (Predicate "F" 0) [],Predication (Predicate "Q" 0) [],Predication (Predicate "R" 0) []]),(fromList [Predication (Predicate "Q" 0) [],Predication (Predicate "R" 0) [],Predication (Predicate "T" 0) []],fromList [Predication (Predicate "F" 0) [],Predication (Predicate "P" 0) [],Predication (Predicate "S" 0) []])]]
 proveSequent :: Sequent -> Consecutives
 proveSequent = prove . setupProof
