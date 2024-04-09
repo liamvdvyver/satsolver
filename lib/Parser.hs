@@ -1,95 +1,133 @@
 module Parser (parseSequent, parseFormula, tokenise) where
 
+import Data.Char
 import Types
 
--- | Identifier ::= Char
+{- The complete grammar:
+
+Variable ::= Identifier
+Function ::= Identifier "(" Function ("," Function)* ")" | Variable
+Predicate ::= Identifier ("(" Function ("," Function)* ")")?
+Grouping ::= "(" Formula ")" | Predicate
+Negation ::= "!" Negation | Grouping
+Qualification ::= ("E" | "V") Variable Qualification | Negation
+Conjunction ::= Qualification ("&" Qualification)*
+Disjunction ::= Conjunction ("|" Conjunction)*
+Implication ::= Disjuntion (">" Disjunction)*
+Equivalence ::= Implication ("=" Implication)*
+Formula ::= Equivalence
+Sequent ::= Formula ("," Formula)* "|-" Formula
+
+-}
+
 data Token
-    = Identifier Char
+    = Identifier Identifier
     | LeftParen
     | RightParen
     | Bang
     | Pipe
     | Ampersand
     | Equals
-    | RightAngle
+    | DoubleArrow
+    | RightArrow
     | Turnstile
-    | Truth
-    | Falsity
     | Comma
+    | Exists
+    | Forall
     deriving (Show, Eq)
 
 tokenise :: String -> [Token]
 tokenise "" = []
 tokenise (' ' : xs) = tokenise xs
 tokenise ('|' : '-' : xs) = Turnstile : tokenise xs
-tokenise (x : xs) = matched : tokenise xs
+tokenise ('<' : '>' : xs) = DoubleArrow : tokenise xs
+tokenise ('-' : '>' : xs) = RightArrow : tokenise xs
+tokenise ('(' : xs) = LeftParen : tokenise xs
+tokenise (')' : xs) = RightParen : tokenise xs
+tokenise ('!' : xs) = Bang : tokenise xs
+tokenise ('|' : xs) = Pipe : tokenise xs
+tokenise ('&' : xs) = Ampersand : tokenise xs
+tokenise ('=' : xs) = Equals : tokenise xs
+tokenise (',' : xs) = Comma : tokenise xs
+tokenise ('E' : xs) = Exists : tokenise xs
+tokenise ('V' : xs) = Forall : tokenise xs
+tokenise str@(x : _)
+    | not $ isAlphaNum x = error $ "Parse error: " ++ str
+    | otherwise = Identifier ident : tokenise remainder
   where
-    matched = case x of
-        '(' -> LeftParen
-        ')' -> RightParen
-        '!' -> Bang
-        '|' -> Pipe
-        '&' -> Ampersand
-        '=' -> Equals
-        '>' -> RightAngle
-        'T' -> Truth
-        'F' -> Falsity
-        ',' -> Comma
-        c -> Identifier c
+    (ident, remainder) = span isAlphaNum str
 
 type FormulaParser = [Token] -> (Formula, [Token])
+type TermParser = [Token] -> (Term, [Token])
 
 -- | To apply connective to output of call to parser
 mapFst :: (a -> a) -> (a, b) -> (a, b)
 mapFst f (a, b) = (f a, b)
 
-{- | Atom ::= Identifier | "T" | "F"
+parseVar :: TermParser
+parseVar ((Identifier str) : xs) = (Var str, xs)
+parseVar [] = error "Parse error: empty variable"
+parseVar _ = error "Parse error: expected identifier"
+ 
+-- | Helper for predicates/function
+parseTerms :: [Token] -> ([Term], [Token])
+parseTerms [] = error "Parse error: empty terms"
+parseTerms (LeftParen : tokens) = parseTerms' [] tokens
+    where
+        parseTerms' :: [Term] -> [Token] -> ([Term], [Token])
+        parseTerms' _ [] = error "Parse error: empty terms"
+        parseTerms' acc tokens'@(t:ts) = case t of
+            RightParen -> (acc, ts)
+            Comma -> parseTerms' acc ts
+            _ -> parseTerms' (acc ++ [term]) remainder
+                where (term, remainder) = parseFunction tokens'
+parseTerms _ = error "Parse error: expected '('"
 
->>> parseAtom [Identifier 'a']
-(FromAtom (Var 'a'),[])
->>> parseAtom [Truth]
-(FromAtom ConstTrue,[])
--}
-parseAtom :: FormulaParser
-parseAtom [] = error "Parse error: empty atom"
-parseAtom (t : ts) = (FromAtom atom, ts)
+parseFunction :: TermParser
+parseFunction [] = error "Parse error: empty function"
+parseFunction ((Identifier str) : ts@(LeftParen : _)) = (Function str arity terms, remainder)
   where
-    atom = case t of
-        (Identifier a) -> Var a
-        Truth -> ConstTrue
-        Falsity -> ConstFalse
-        _ -> error "Parse error: expected atom"
+    (terms, remainder) = parseTerms ts
+    arity = length terms
+parseFunction ts = parseVar ts
 
-{- | Grouping ::= "(" Formula ")"
+parsePredicate :: FormulaParser
+parsePredicate [] = error "Parse error: empty Predicate"
+parsePredicate ((Identifier str) : ts@(LeftParen : _)) = (Predication (Predicate str arity) terms, remainder)
+    where
+        (terms, remainder) = parseTerms ts
+        arity = length terms
+parsePredicate (Identifier str : ts) = (Predication (Predicate str 0) [], ts)
+parsePredicate _ = error "Parse error: expected identifier"
 
->>> parseGrouping [LeftParen, Identifier 'a', RightParen, Identifier 'b']
-(FromAtom (Var 'a'),[Identifier 'b'])
+{- | Grouping ::= "(" Formula ")" | Predicate
+
+>>> parseGrouping [LeftParen, Identifier "a", RightParen, Identifier "b"]
+(Predication (Predicate "a" 0) [],[Identifier "b"])
 -}
 parseGrouping :: FormulaParser
 parseGrouping [] = error "Parse error: empty grouping"
 parseGrouping (LeftParen : ts) = case parseFormula ts of
     (f, RightParen : xs) -> (f, xs)
     _ -> error "Parse error: expected ')'"
-parseGrouping _ = error "Parse error: expected '('"
+parseGrouping ts = parsePredicate ts
 
-{- | Primary ::= Atom | Grouping
-
->>> parsePrimary [Identifier 'a', Identifier 'b']
-(FromAtom (Var 'a'),[Identifier 'b'])
->>> parsePrimary [LeftParen, Identifier 'a', RightParen, Identifier 'b']
-(FromAtom (Var 'a'),[Identifier 'b'])
--}
-parsePrimary :: FormulaParser
-parsePrimary [] = error "Parse error: empty primary formula"
-parsePrimary xs@(t : _) = case t of
-    LeftParen -> parseGrouping xs
-    _ -> parseAtom xs
-
--- | Negation ::= "!" Negation | Primary
 parseNegation :: FormulaParser
 parseNegation [] = error "Parse error: empty negation"
 parseNegation (Bang : ts) = mapFst Not $ parseNegation ts
-parseNegation ts = parsePrimary ts
+parseNegation ts = parseGrouping ts
+
+parseQualification :: FormulaParser
+parseQualification [] = error "Parse error: empty qualification"
+parseQualification tokens@(t : ts) =
+    let
+        (var, xs') = parseVar ts
+        (formula, remainder) = parseNegation xs'
+     in
+        case t of
+            Exists -> (Existentially var formula, remainder)
+            Forall -> (Universally var formula, remainder)
+            _ -> parseNegation tokens
 
 -- | Build parser for binary connective based on precedence
 binaryParse ::
@@ -114,46 +152,44 @@ binaryParse ts operator constructor nextParser
 
     (rightFormula, rightRemainder) = nextParser tailLeftRemainder
 
--- | Conjunction ::= Negation ("&" Negation)*
 parseConjunction :: FormulaParser
-parseConjunction ts = binaryParse ts Ampersand And parseNegation
+parseConjunction ts = binaryParse ts Ampersand And parseQualification
 
--- | Disjunction ::= Conjunction ("|" Conjunction)*
 parseDisjunction :: FormulaParser
 parseDisjunction ts = binaryParse ts Pipe Or parseConjunction
 
--- | Implication ::= Disjunction (">" Disjunction)*
 parseImplication :: FormulaParser
-parseImplication ts = binaryParse ts RightAngle Implies parseDisjunction
+parseImplication ts = binaryParse ts RightArrow Implies parseDisjunction
 
--- | Equivalence ::= Implication ("=" Implication)*
 parseEquivalence :: FormulaParser
 parseEquivalence ts = binaryParse ts Equals Iff parseImplication
 
--- | Formula ::= Equivalence
 parseFormula :: FormulaParser
 parseFormula = parseEquivalence
 
--- | Sequent ::= Formula ("," Formula)* "|-" Formula
---
--- >>> parseSequent $ tokenise $ "X|-a"
--- Entails [FromAtom (Var 'X')] (FromAtom (Var 'a'))
--- >>> parseSequent $ tokenise $ "X,Y|-a"
--- Entails [FromAtom (Var 'X'),FromAtom (Var 'Y')] (FromAtom (Var 'a'))
--- >>> parseSequent $ tokenise $ "|-a"
--- Entails [] (FromAtom (Var 'a'))
+{- | Sequent ::= Formula ("," Formula)* "|-" Formula
+
+>>> parseSequent $ tokenise $ "X|-a"
+Entails [Predication (Predicate "X" 0) []] (Predication (Predicate "a" 0) [])
+>>> parseSequent $ tokenise $ "X,Y|-a"
+Entails [Predication (Predicate "X" 0) [],Predication (Predicate "Y" 0) []] (Predication (Predicate "a" 0) [])
+>>> parseSequent $ tokenise $ "|-a"
+Entails [] (Predication (Predicate "a" 0) [])
+-}
 parseSequent :: [Token] -> Sequent
 parseSequent ts = Entails leftFormulae finalRightFormula
-    where
+  where
     (leftFormulae, finalRightFormula) = parseLhs [] ts
 
     parseLhs :: [Formula] -> [Token] -> ([Formula], Formula)
-    parseLhs parsed (Turnstile:ts') = (parsed, parseRhs ts')
-    parseLhs parsed (Comma:ts') = parseLhs parsed ts'
+    parseLhs parsed (Turnstile : ts') = (parsed, parseRhs ts')
+    parseLhs parsed (Comma : ts') = parseLhs parsed ts'
     parseLhs [] ts' = parseLhs [parsed'] remainder
-        where (parsed', remainder) = parseFormula ts'
+      where
+        (parsed', remainder) = parseFormula ts'
     parseLhs parsed ts' = parseLhs (parsed ++ [parsed']) remainder
-        where (parsed', remainder) = parseFormula ts'
+      where
+        (parsed', remainder) = parseFormula ts'
 
     parseRhs :: [Token] -> Formula
     parseRhs ts' = case parseFormula ts' of
