@@ -276,12 +276,12 @@ getChildren = combineThens [[]]
 -}
 prove :: Int -> Consecutives -> Consecutives
 prove depth xs
-    | depth <= 0 = xs
+    | depth <= 0 = []
     | isClosed proof = pure Closed
     | isOpen proof = pure $ Open [interpretations]
     | childIsOpen = pure $ Open mergedInterpretations
-    | childIsClosed = pure Closed
-    | otherwise = xs
+    | childrenAreClosed = pure Closed
+    | otherwise = []
   where
 
     proof =  map (`finalise` xs) xs
@@ -295,7 +295,7 @@ prove depth xs
     openChildren = filter isLiteralOpen provenChildren
     childIsOpen = any isLiteralOpen provenChildren
 
-    childIsClosed = [Closed] `elem` provenChildren
+    childrenAreClosed = all (== [Closed]) provenChildren
 
     interpretations = getInterpretations proof
     fromNode [Open a] = a
