@@ -2,6 +2,7 @@ module Parser (parseSequent, parseFormula, tokenise) where
 
 import Data.Char
 import Types
+import qualified Data.Set as Set
 
 {- The complete grammar:
 
@@ -85,7 +86,7 @@ parseTerms _ = error "Parse error: expected '('"
 
 parseFunction :: TermParser
 parseFunction [] = error "Parse error: empty function"
-parseFunction ((Identifier str) : ts@(LeftParen : _)) = (Function str arity terms, remainder)
+parseFunction ((Identifier str) : ts@(LeftParen : _)) = (FunctionApplication (Function str arity) terms, remainder)
   where
     (terms, remainder) = parseTerms ts
     arity = length terms
@@ -126,7 +127,7 @@ parseQuantification tokens@(t : ts) =
      in
         case t of
             Exists -> (Existentially var formula, remainder)
-            Forall -> (Universally var formula, remainder)
+            Forall -> (Universally var formula Set.empty, remainder)
             _ -> parseNegation tokens
 
 -- | Build parser for binary connective based on precedence

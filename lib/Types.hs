@@ -1,7 +1,12 @@
 module Types where
 
+import qualified Data.Set as Set
+
 -- Objects are just nullary functions
-data Term = Function Identifier Int [Term] | Var String
+data Term = FunctionApplication Function [Term] | Var String
+    deriving (Show, Ord, Eq)
+
+data Function = Function Identifier Int
     deriving (Show, Ord, Eq)
 
 -- Propositional variables are just nullary predicates
@@ -21,8 +26,9 @@ data Formula
     | Iff Formula Formula
     | Predication Predicate [Term]
     | Existentially Term Formula
-    | Universally Term Formula
+    | Universally Term Formula (Set.Set Term) -- Keep track of which objects the rule has been applied to
     deriving (Show, Ord, Eq)
 
 data Sequent = Entails [Formula] Formula
-    deriving Show
+    deriving (Show)
+
