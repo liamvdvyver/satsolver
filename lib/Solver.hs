@@ -53,7 +53,19 @@ substitute (Predication predicate terms) from to = Predication predicate $ map s
             Var s -> Var s
             FunctionApplication function terms' -> FunctionApplication function $ map subTerm terms'
 
--- | Find terms in branch
+{- | Find terms in branch
+
+>>> let p = Predication (Predicate "P" 0) []
+>>> let q = Predication (Predicate "Q" 0) []
+>>> let a = FunctionApplication (Function "a" 0) []
+>>> let x = Var "x"
+>>> let fa = Predication (Predicate "F" 1) [a]
+>>> let fx = Predication (Predicate "F" 1) [x]
+>>> let u = Universally x fx Set.empty
+>>> let ua = Universally (Var "x") fx $ Set.singleton a
+>>> branchTerms [Finally $ T fa, UnFinally $ T u] == Set.fromList [x, a]
+True
+-}
 branchTerms :: Consecutives -> Set.Set Term
 branchTerms lns = Set.fromList $ concatMap lineTerms lns
   where
@@ -157,7 +169,7 @@ Then (T (Or (Predication (Predicate "P" 0) []) (Predication (Predicate "Q" 0) []
 finalise :: ProofNode -> [ProofNode] -> ProofNode
 finalise (UnFinally f@(T (Predication _ _))) _ = Finally f
 finalise (UnFinally f@(F (Predication _ _))) _ = Finally f
-finalise (UnFinally line) branch = Then line $ branchLine  line branch
+finalise (UnFinally line) branch = Then line $ branchLine line branch
 finalise x _ = x
 
 {- | Get a tuple of (True Vars, False Vars)
@@ -205,18 +217,30 @@ isClosed proofNodes = not $ Set.disjoint trues falses
   where
     (trues, falses) = getInterpretations proofNodes
 
-{- Check whether branch is open
+{- | Check whether branch is open
 
->>> isOpen [Finally $ T $ Predication (Predicate "P" 0) [], Finally F $ Predication (Predicate "Q" 0) []]
+>>> let p = Predication (Predicate "P" 0) []
+>>> let q = Predication (Predicate "Q" 0) []
+>>> let a = FunctionApplication (Function "a" 0) []
+>>> let x = Var "x"
+>>> let fa = Predication (Predicate "F" 1) [a]
+>>> let fx = Predication (Predicate "F" 1) [x]
+>>> let u = Universally x fx Set.empty
+>>> let ua = Universally (Var "x") fx $ Set.fromList [x, a]
+>>> isOpen [Finally $ T p, Finally $ F q]
 True
->>> isOpen [Finally $ T $ Predication (Predicate "P" 0) [], Finally F $ Predication (Predicate "P" 0) []]
+>>> isOpen [Finally $ T p, Finally $ F p]
 False
->>> isOpen [Finally $ T $ Predication (Predicate "P" 0) [], Finally F $ Predication (Predicate "Q" 0) [], UnFinally ]
+>>> isOpen [Finally $ T p, Finally $ F q, UnFinally $ T p]
 False
->>> isOpen [(Finally $ T $ (Predication (Predicate "P" 0) [])), Then (F $ (Predication (Predicate "P" 0) []) `Or` (Predication (Predicate "Q" 0) [])) [[(UnFinally $ F $ Predication (Predicate "P" 0) []), (UnFinally $ F $ Predication (Predicate "Q" 0) [])]]] -- The parent
+>>> isOpen [Finally $ T p, Then (F $ p `Or` q) [[UnFinally $ F p, UnFinally $ F q]]]
 False
->>> isOpen [(Finally $ T $ (Predication (Predicate "P" 0) [])), (UnFinally $ F $ Predication (Predicate "P" 0) []), (UnFinally $ F $ Predication (Predicate "Q" 0) [])]
+>>> isOpen [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
 False
+>>> isOpen [UnFinally $ T u, Finally $ T fa]
+False
+>>> isOpen [UnFinally $ T ua, Finally $ T fa]
+True
 -}
 isOpen :: Consecutives -> Bool
 isOpen proofNodes = not (isClosed proofNodes) && fullyExpanded proofNodes
@@ -257,7 +281,7 @@ getChildren = combineThens [[]]
     -- Recursive helper
     combineThens :: Alternates -> Consecutives -> Alternates
     combineThens acc [] = acc
-    combineThens acc (x:xs)
+    combineThens acc (x : xs)
         | isThen x = combineThens ([existing ++ new | existing <- acc, new <- fromThen x]) xs
         | otherwise = combineThens (map (++ [x]) acc) xs
 
