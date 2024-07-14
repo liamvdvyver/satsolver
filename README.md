@@ -8,7 +8,10 @@ Predicate logic is currently being implemented, so lots of things don't work!
 
 ## Usage
 
-e.g. `satsolve '!(x&y)|-!x|!y'`
+Examples:
+
+- `satsolve '!(x&y)|-!x|!y'`
+- `satsolve '|-Ex(F(x)->Vy(F(y)))'`
 
 ## Grammar
 
@@ -17,8 +20,4 @@ specification used for implementation.
 
 ## Todo
 
-- [x] Parse predicate logic sequents
-- [ ] BFS or iterative deepening
-- [ ] Identify variables in a branch
-- [ ] Identify free/bound variables
-- [ ] Expand quantifiers
+- [ ] Iterative deepening

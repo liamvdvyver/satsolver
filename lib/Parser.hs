@@ -14,7 +14,7 @@ Negation ::= "!" Negation | Grouping
 Quantification ::= ("E" | "V") Variable Quantification | Negation
 Conjunction ::= Quantification ("&" Quantification)*
 Disjunction ::= Conjunction ("|" Conjunction)*
-Implication ::= Disjuntion (">" Disjunction)*
+Implication ::= Disjuntion ("->" Disjunction)*
 Equivalence ::= Implication ("=" Implication)*
 Formula ::= Equivalence
 Sequent ::= Formula ("," Formula)* "|-" Formula

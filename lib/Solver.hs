@@ -307,8 +307,7 @@ prove depth xs
     | childrenAreClosed = pure Closed
     | otherwise = []
   where
-
-    proof =  map (`finalise` xs) xs
+    proof = map (`finalise` xs) xs
 
     children = getChildren proof
 
@@ -345,10 +344,20 @@ isValid s = case proveSequent s of
     [Closed] -> True
     _ -> error "Did not reduce"
 
+idDfsProve :: Int -> Int -> Consecutives -> Consecutives
+idDfsProve depth maxDepth xs = case proven of
+    (Closed : _) -> proven
+    (Open _ : _) -> proven
+    _
+        | depth >= maxDepth -> proven
+        | otherwise -> idDfsProve (depth + 1) maxDepth xs
+  where
+    proven = prove depth xs
+
 {- | Prove a sequent
 
 >>> proveSequent $ [(((Predication (Predicate "P" 0) []) `Or` (Predication (Predicate "Q" 0) [])) `Iff` ((Predication (Predicate "R" 0) []) `Or` (Predication (Predicate "S" 0) [])))] `Entails` (((Predication (Predicate "P" 0) []) `Iff` (Predication (Predicate "R" 0) [])) `Or` ((Predication (Predicate "Q" 0) []) `Iff` (Predication (Predicate "S" 0) [])))
 [Open [(fromList [Predication (Predicate "P" 0) [],Predication (Predicate "S" 0) [],Predication (Predicate "T" 0) []],fromList [Predication (Predicate "F" 0) [],Predication (Predicate "Q" 0) [],Predication (Predicate "R" 0) []]),(fromList [Predication (Predicate "Q" 0) [],Predication (Predicate "R" 0) [],Predication (Predicate "T" 0) []],fromList [Predication (Predicate "F" 0) [],Predication (Predicate "P" 0) [],Predication (Predicate "S" 0) []])]]
 -}
 proveSequent :: Sequent -> Consecutives
-proveSequent = (prove 99) . setupProof
+proveSequent = (idDfsProve 1 99) . setupProof
