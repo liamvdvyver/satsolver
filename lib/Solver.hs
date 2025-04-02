@@ -113,9 +113,9 @@ branchLine line branch = map (map UnFinally) $ case line of
     (F (Existentially v a)) -> [[T (Universally v (Not a) Set.empty)]]
     (F (Universally v a _)) -> [[T (Existentially v (Not a))]]
     -- Instantiate object and substitute var in formula
-    (T (Existentially v a)) -> [[T $ substitute a v obj]]
+    (T (Existentially v a)) -> [[T $ substitute a v newObj]]
       where
-        obj = newObject branch
+        newObj = newObject branch
     -- Add line for each object in the branch, and keep
     -- Then keep this here since we need to apply to later instantiated objects
     -- Branches can still close with this behaviour
@@ -162,9 +162,6 @@ getInterpretations proofNodes = (trues, falses)
     interpretations = map fromFinally $ filter isInterpretation proofNodes
     trueVars = Set.fromList $ map fromProofLine $ filter isTrue interpretations
     falseVars = Set.fromList $ map fromProofLine $ filter (not . isTrue) interpretations
-
-    true = Predication (Predicate "T" 0) []
-    false = Predication (Predicate "F" 0) []
 
     trues = Set.union trueVars $ Set.fromList [true]
     falses = Set.union falseVars $ Set.fromList [false]

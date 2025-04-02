@@ -1,8 +1,8 @@
 module Parser (parseSequent, parseFormula, tokenise) where
 
 import Data.Char
-import Types
 import qualified Data.Set as Set
+import Types
 
 {- The complete grammar:
 
@@ -69,19 +69,20 @@ parseVar :: TermParser
 parseVar ((Identifier str) : xs) = (Var str, xs)
 parseVar [] = error "Parse error: empty variable"
 parseVar _ = error "Parse error: expected identifier"
- 
+
 -- | Helper for predicates/function
 parseTerms :: [Token] -> ([Term], [Token])
 parseTerms [] = error "Parse error: empty terms"
 parseTerms (LeftParen : tokens) = parseTerms' [] tokens
-    where
-        parseTerms' :: [Term] -> [Token] -> ([Term], [Token])
-        parseTerms' _ [] = error "Parse error: empty terms"
-        parseTerms' acc tokens'@(t:ts) = case t of
-            RightParen -> (acc, ts)
-            Comma -> parseTerms' acc ts
-            _ -> parseTerms' (acc ++ [term]) remainder
-                where (term, remainder) = parseFunction tokens'
+  where
+    parseTerms' :: [Term] -> [Token] -> ([Term], [Token])
+    parseTerms' _ [] = error "Parse error: empty terms"
+    parseTerms' acc tokens'@(t : ts) = case t of
+        RightParen -> (acc, ts)
+        Comma -> parseTerms' acc ts
+        _ -> parseTerms' (acc ++ [term]) remainder
+          where
+            (term, remainder) = parseFunction tokens'
 parseTerms _ = error "Parse error: expected '('"
 
 parseFunction :: TermParser
@@ -95,17 +96,13 @@ parseFunction ts = parseVar ts
 parsePredicate :: FormulaParser
 parsePredicate [] = error "Parse error: empty Predicate"
 parsePredicate ((Identifier str) : ts@(LeftParen : _)) = (Predication (Predicate str arity) terms, remainder)
-    where
-        (terms, remainder) = parseTerms ts
-        arity = length terms
+  where
+    (terms, remainder) = parseTerms ts
+    arity = length terms
 parsePredicate (Identifier str : ts) = (Predication (Predicate str 0) [], ts)
 parsePredicate _ = error "Parse error: expected identifier"
 
-{- | Grouping ::= "(" Formula ")" | Predicate
-
->>> parseGrouping [LeftParen, Identifier "a", RightParen, Identifier "b"]
-(Predication (Predicate "a" 0) [],[Identifier "b"])
--}
+-- | Grouping ::= "(" Formula ")" | Predicate
 parseGrouping :: FormulaParser
 parseGrouping [] = error "Parse error: empty grouping"
 parseGrouping (LeftParen : ts) = case parseFormula ts of

@@ -11,31 +11,25 @@ import qualified Data.Set as Set
 -- Constants for testing
 
 a :: Term
-a = FunctionApplication (Function "a" 0) []
+a = obj "a"
 
 b :: Term
-b = FunctionApplication (Function "b" 0) []
+b = obj "b"
 
 x :: Term
 x = Var "x"
 
 p :: Formula
-p = Predication (Predicate "P" 0) []
+p = prop "p"
 
 q :: Formula
-q = Predication (Predicate "Q" 0) []
+q = prop "q"
 
 r :: Formula
-r = Predication (Predicate "R" 0) []
+r = prop "r"
 
 s :: Formula
-s = Predication (Predicate "S" 0) []
-
-t :: Formula
-t = Predication (Predicate "T" 0) []
-
-f :: Formula
-f = Predication (Predicate "F" 0) []
+s = prop "s"
 
 u :: Formula
 u = Universally x px Set.empty
@@ -148,7 +142,7 @@ testGetInterpretations =
         assertEqual
             []
             (getInterpretations [Finally $ T p, Finally $ F p, Finally $ T q, Finally $ T (p `Or` q), UnFinally $ T q])
-            (Set.fromList [p, q, t], Set.fromList [f, p])
+            (Set.fromList [p, q, true], Set.fromList [false, p])
 
 testIsClosed :: TestTree
 testIsClosed =
@@ -194,7 +188,7 @@ testProve =
         (\(a, b) -> testCase [] $ assertEqual [] a b)
             <$> [
                     ( prove proofDepth [Finally $ T p, UnFinally $ F $ p `And` q]
-                    , [Open [(Set.fromList [p, t], Set.fromList [f, q])]]
+                    , [Open [(Set.fromList [p, true], Set.fromList [false, q])]]
                     )
                 ,
                     ( prove proofDepth [Finally $ T p, Finally $ F p, Finally $ F q]
@@ -232,7 +226,7 @@ testProveSequent =
         assertEqual
             []
             (proveSequent $ [(p `Or` q) `Iff` (r `Or` s)] `Entails` ((p `Iff` r) `Or` (q `Iff` s)))
-            [Open [(Set.fromList [p, s, t], Set.fromList [f, q, r]), (Set.fromList [q, r, t], Set.fromList [f, p, s])]]
+            [Open [(Set.fromList [p, s, true], Set.fromList [false, q, r]), (Set.fromList [q, r, true], Set.fromList [false, p, s])]]
 
 -- All tests
 
