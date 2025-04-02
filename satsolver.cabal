@@ -35,3 +35,9 @@ test-suite test-solver
     type: exitcode-stdio-1.0
     hs-source-dirs: tests
     main-is: TestSolver.hs
+
+test-suite test-parser
+    build-depends: base >=4.16.4.0, satsolver, tasty, tasty-hunit
+    type: exitcode-stdio-1.0
+    hs-source-dirs: tests
+    main-is: TestParser.hs

@@ -165,15 +165,7 @@ parseEquivalence ts = binaryParse ts Equals Iff parseImplication
 parseFormula :: FormulaParser
 parseFormula = parseEquivalence
 
-{- | Sequent ::= Formula ("," Formula)* "|-" Formula
-
->>> parseSequent $ tokenise $ "X|-a"
-Entails [Predication (Predicate "X" 0) []] (Predication (Predicate "a" 0) [])
->>> parseSequent $ tokenise $ "X,Y|-a"
-Entails [Predication (Predicate "X" 0) [],Predication (Predicate "Y" 0) []] (Predication (Predicate "a" 0) [])
->>> parseSequent $ tokenise $ "|-a"
-Entails [] (Predication (Predicate "a" 0) [])
--}
+-- | Sequent ::= Formula ("," Formula)* "|-" Formula
 parseSequent :: [Token] -> Sequent
 parseSequent ts = Entails leftFormulae finalRightFormula
   where
