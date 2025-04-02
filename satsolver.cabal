@@ -17,13 +17,11 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  Solver, Parser
-    other-modules:    Types
+    exposed-modules:  Solver, Parser, Types
     -- other-extensions:
     build-depends:    base >=4.16.4.0, containers
     hs-source-dirs:   lib
     default-language: Haskell2010
-
 
 executable satsolve
     import:           warnings
@@ -31,3 +29,9 @@ executable satsolve
     build-depends:    base >=4.16.4.0, satsolver
     hs-source-dirs:   src
     default-language: Haskell2010
+
+test-suite test-solver
+    build-depends: base >=4.16.4.0, satsolver, tasty, tasty-hunit, containers
+    type: exitcode-stdio-1.0
+    hs-source-dirs: tests
+    main-is: TestSolver.hs
