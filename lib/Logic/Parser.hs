@@ -88,7 +88,7 @@ parseTerms _ = error "Parse error: expected '('"
 
 parseFunction :: TermParser
 parseFunction [] = error "Parse error: empty function"
-parseFunction ((Identifier str) : ts@(LeftParen : _)) = (FunctionApplication (Function str arity) terms, remainder)
+parseFunction ((Identifier str) : ts@(LeftParen : _)) = (ApplyFunc (Function str arity) terms, remainder)
   where
     (terms, remainder) = parseTerms ts
     arity = length terms
@@ -96,11 +96,11 @@ parseFunction ts = parseVar ts
 
 parsePredicate :: FormulaParser
 parsePredicate [] = error "Parse error: empty Predicate"
-parsePredicate ((Identifier str) : ts@(LeftParen : _)) = (Predication (Predicate str arity) terms, remainder)
+parsePredicate ((Identifier str) : ts@(LeftParen : _)) = (ApplyPred (Predicate str arity) terms, remainder)
   where
     (terms, remainder) = parseTerms ts
     arity = length terms
-parsePredicate (Identifier str : ts) = (Predication (Predicate str 0) [], ts)
+parsePredicate (Identifier str : ts) = (ApplyPred (Predicate str 0) [], ts)
 parsePredicate _ = error "Parse error: expected identifier"
 
 -- | Grouping ::= "(" Formula ")" | Predicate

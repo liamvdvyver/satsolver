@@ -3,41 +3,55 @@ module Logic.Proofs where
 import Logic
 
 import qualified Data.Set as Set
+import qualified Data.List as List
 
-data Signed = T Formula | F Formula
+data Signed = T {unSigned :: Formula} | F {unSigned :: Formula}
     deriving (Show, Eq, Ord)
 
-data ProofStep
-    = Then Signed Branches -- A line, with the (branched) subformulae it red
+data Line
+    = Then Signed Branched -- A line, with the (branched) subformulae it red
     | UnFinally Signed -- Line which has not been expanded to its subformulae yet
     | Finally Signed -- Line which is known not to branch
-    | Open [Interpretations] -- Keep track of variable assignment to find counterexample
+    deriving (Show, Eq)
+
+data ProofValue
+    = Open [Model] -- Keep track of variable assignment to find counterexample
     | Closed
     | Cutoff
     deriving (Show, Eq)
 
-newtype Branches = Branches [NodeLabel] -- Branched Possibilities
+newtype Branched = Branched {unBranched :: [LineSet]} -- Branched Possibilities
     deriving (Show, Eq)
 
-newtype NodeLabel = Node [ProofStep]
+newtype LineSet = LineSet {unLineSet :: [Line]}
     deriving (Show, Eq)
 
-data Interpretations = Interpretations (Set.Set Formula) (Set.Set Formula) -- (trues, falses)
+data Model = Model
+    { trues :: Set.Set Formula
+    , falses :: Set.Set Formula
+    }
     deriving (Show, Eq)
 
-data ProofNode = Proof NodeLabel ProofStep (Maybe [ProofNode])
+-- data ProofNode = Proof NodeLabel ProofStep (Maybe [ProofNode])
+data ProofNode = Proof
+    { curLines :: LineSet
+    , expandedLines :: LineSet
+    , nodeValue :: ProofValue
+    , children :: Maybe [ProofNode]
+    }
     deriving (Eq)
 
-instance Free ProofStep where
+-- | Get lines still to be expanded, plus lines already expanded
+allLines :: ProofNode -> LineSet
+allLines node = LineSet $ List.nub $ unLineSet (curLines node) ++ unLineSet (expandedLines node)
+
+instance Free Line where
     free (Finally (T formula)) = free formula
     free (Finally (F formula)) = free formula
     free (UnFinally (T formula)) = free formula
     free (UnFinally (F formula)) = free formula
     free (Then (T formula) _) = free formula
     free (Then (F formula) _) = free formula
-    free Closed = Set.empty
-    free (Open _) = Set.empty
-    free Cutoff = Set.empty
 
-instance Free NodeLabel where
-    free (Node steps) = Set.unions $ map free steps
+instance Free LineSet where
+    free = Set.unions . map free . unLineSet

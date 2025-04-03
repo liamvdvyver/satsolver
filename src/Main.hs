@@ -8,9 +8,9 @@ import Logic.Pretty
 import System.Environment
 
 proofResult :: ProofNode -> String
-proofResult proof = case proof of
-        (Proof _ Closed _) -> "Valid"
-        (Proof _ (Open int) _) -> "Found countermodel " ++ commaSeparate int
+proofResult proof = case nodeValue proof of
+        Closed -> "Valid"
+        (Open int) -> "Found countermodel " ++ commaSeparate int
         _ -> "Did not reduce"
 
 main :: IO ()

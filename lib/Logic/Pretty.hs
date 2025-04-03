@@ -25,7 +25,7 @@ inBrackets x = case str of
     str = pretty x
 
 instance Pretty Term where
-    pretty (FunctionApplication f t) = pretty f ++ (inBrackets . commaSeparate) t
+    pretty (ApplyFunc f t) = pretty f ++ (inBrackets . commaSeparate) t
     pretty (Var s) = s
 
 instance Pretty Function where
@@ -40,7 +40,7 @@ instance Pretty Formula where
     pretty (Not p) = "¬" ++ pretty p
     pretty (p `Implies` q) = "(" ++ pretty p ++ "→" ++ pretty q ++ ")"
     pretty (p `Iff` q) = "(" ++ pretty p ++ "↔" ++ pretty q ++ ")"
-    pretty (Predication predicate terms) = pretty predicate ++ inBrackets (commaSeparate terms)
+    pretty (ApplyPred predicate terms) = pretty predicate ++ inBrackets (commaSeparate terms)
     pretty (Existentially t f) = "(∃" ++ pretty t ++ pretty f ++ ")"
     pretty (Universally t f _) = "(∀" ++ pretty t ++ pretty f ++ ")"
 
@@ -51,27 +51,36 @@ instance Pretty Signed where
     pretty (T f) = "T: " ++ pretty f
     pretty (F f) = "F: " ++ pretty f
 
-instance Pretty Interpretations where
-    pretty (Interpretations ts fs) = "(" ++ prettyTs ++ ", " ++ prettyFs ++ ")"
+instance Pretty Model where
+    pretty (Model ts fs) = "(" ++ prettyTs ++ ", " ++ prettyFs ++ ")"
       where
         prettyTs = commaSeparate $ Set.toList $ Set.map (("T: " ++) . pretty) ts
         prettyFs = commaSeparate $ Set.toList $ Set.map (("F: " ++) . pretty) fs
 
-instance Pretty ProofStep where
+instance Pretty Line where
     pretty (Finally s) = pretty s
-    -- pretty (UnFinally s) = inBrackets s
     pretty (UnFinally s) = pretty s
     pretty (Then s _) = inBrackets s ++ " (branch) "
-    pretty (Open i) = "Model :" ++ commaSeparate i
+
+instance Pretty Branched where
+    pretty (Branched bs) = "(" ++ commaSeparate bs ++ ")"
+
+instance Pretty LineSet where
+    pretty (LineSet lns) = "(" ++ commaSeparate lns ++ ")"
+
+instance Pretty ProofValue where
     pretty Closed = "Closed"
-    pretty Cutoff = "(Cutoff)"
+    pretty (Open _) = "Open"
+    pretty Cutoff = "Cutoff"
 
 instance Pretty ProofNode where
-    pretty (Proof (Node l) _ children) = unlines $ labelText : childrenText
+    pretty node = unlines $ branchVal : labelText : childrenText
       where
-        labelText = unlines $ map pretty l
+        (LineSet lns) = curLines node
+        labelText = unlines $ map pretty lns
         indent = "    "
         childrenText :: [String]
-        childrenText = map (indent ++) $ concatMap lines $ case children of
+        childrenText = map (indent ++) $ concatMap lines $ case children node of
             Nothing -> []
             Just c -> map pretty c
+        branchVal = pretty $ nodeValue node
