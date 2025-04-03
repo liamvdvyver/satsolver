@@ -6,6 +6,7 @@ import Test.Tasty.HUnit (Assertable (assert), assertBool, assertEqual, testCase)
 import Solver
 import Types
 
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
 -- Constants for testing
@@ -84,15 +85,15 @@ testSubQuantified =
 -- Branching
 
 testBranching :: TestTree
-testBranching = testGroup "Branching" [testBranchTerms, testBranchLine]
+testBranching = testGroup "Branching" [testFreeTerms, testBranchLine]
 
-testBranchTerms :: TestTree
-testBranchTerms =
-    testCase "Find branch terms" $
+testFreeTerms :: TestTree
+testFreeTerms =
+    testCase "Find free terms" $
         assertEqual
             []
-            (branchTerms [Finally $ T pa, UnFinally $ T u])
-            (Set.fromList [x, a])
+            (Set.unions $ map free [Finally $ T pa, UnFinally $ T u])
+            (Set.singleton a)
 
 testBranchLine :: TestTree
 testBranchLine =
@@ -166,7 +167,7 @@ testIsOpen =
                 , isOpen [UnFinally $ T ua, Finally $ T pa]
                 ]
   where
-    ua = Universally (Var "x") px $ Set.fromList [x, a]
+    ua = Universally (Var "x") px $ Set.singleton a
 
 -- Proving
 
@@ -185,26 +186,26 @@ proofDepth = 99
 testProve :: TestTree
 testProve =
     testGroup "Run proofs on formulae" $
-        (\(a, b) -> testCase [] $ assertEqual [] a b)
+        (\(a, b) -> testCase [] $ assertEqual [] ((\(Proof _ s _) -> s) a) b)
             <$> [
                     ( prove proofDepth [Finally $ T p, UnFinally $ F $ p `And` q]
-                    , [Open [(Set.fromList [p, true], Set.fromList [false, q])]]
+                    , Open [(Set.fromList [p, true], Set.fromList [false, q])]
                     )
                 ,
                     ( prove proofDepth [Finally $ T p, Finally $ F p, Finally $ F q]
-                    , [Closed]
+                    , Closed
                     )
                 ,
                     ( prove proofDepth [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
-                    , [Closed]
+                    , Closed
                     )
                 ,
                     ( prove proofDepth [Finally $ T p, Then (F $ p `Or` q) [[UnFinally $ F p, UnFinally $ F q]]] -- The parent
-                    , [Closed]
+                    , Closed
                     )
                 ,
                     ( prove proofDepth [Finally $ T p, UnFinally $ F $ p `Or` q]
-                    , [Closed]
+                    , Closed
                     )
                 ]
 
@@ -212,12 +213,13 @@ testValid :: TestTree
 testValid =
     testGroup
         "Check validity"
-        [ testCase "Valid sequent" $ assertBool [] $ isValid $ [Not $ p `Or` q] `Entails` (Not p `And` Not q)
+        [ testCase "Valid sequent" $ assertBool [] $ Maybe.fromJust $ isValid $ [Not $ p `Or` q] `Entails` (Not p `And` Not q)
         , testCase "Invalid sequent" $
             assertBool [] $
                 not $
-                    isValid $
-                        [(p `Or` q) `Iff` (r `Or` s)] `Entails` ((p `Iff` r) `Or` (q `Iff` s))
+                    Maybe.fromJust $
+                        isValid $
+                            [(p `Or` q) `Iff` (r `Or` s)] `Entails` ((p `Iff` r) `Or` (q `Iff` s))
         ]
 
 testProveSequent :: TestTree
@@ -225,8 +227,8 @@ testProveSequent =
     testCase "Run proofs on sequent" $
         assertEqual
             []
-            (proveSequent $ [(p `Or` q) `Iff` (r `Or` s)] `Entails` ((p `Iff` r) `Or` (q `Iff` s)))
-            [Open [(Set.fromList [p, s, true], Set.fromList [false, q, r]), (Set.fromList [q, r, true], Set.fromList [false, p, s])]]
+            ((\(Proof _ s _) -> s) (proveSequent $ [(p `Or` q) `Iff` (r `Or` s)] `Entails` ((p `Iff` r) `Or` (q `Iff` s))))
+            (Open [(Set.fromList [p, s, true], Set.fromList [false, q, r]), (Set.fromList [q, r, true], Set.fromList [false, p, s])])
 
 -- All tests
 
