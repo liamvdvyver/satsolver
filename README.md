@@ -2,22 +2,53 @@
 
 **(Not a SAT solver)**
 
-Simple sequent checker, grammar and recursive descent parser for classical logic.
+Semantic tableaux prover for first order logic.
 
-Predicate logic is currently being implemented, so lots of things don't work!
+_(Well, it is a SAT solver, but not the best tool for that job ...)_
 
 ## Usage
 
-Examples:
+#### Examples:
 
 - `satsolve '!(x&y)|-!x|!y'`
 - `satsolve '|-Ex(F(x)->Vy(F(y)))'`
 
+### Tips:
+
+This can only check sequents for now, by attempting to find a countermodel.
+To check for satisfiability, see if a set of premises must contradict.
+
+#### Examples:
+
+- `satsolve 'p,q|-F'`
+- `satsolve 'p,!p|-F'`
+
 ## Grammar
 
-Where usual precedence applies. See the module Parser for a precise
-specification used for implementation.
+A snippet from `Logic.Parser`:
 
-## Todo
+```
+{- The complete grammar:
 
-- [ ] Iterative deepening
+Variable ::= Identifier
+Function ::= Identifier "(" Function ("," Function)* ")" | Variable
+Predicate ::= Identifier ("(" Function ("," Function)* ")")?
+Grouping ::= "(" Formula ")" | Predicate
+Negation ::= "!" Negation | Grouping
+Quantification ::= ("E" | "V") Variable Quantification | Negation
+Conjunction ::= Quantification ("&" Quantification)*
+Disjunction ::= Conjunction ("|" Conjunction)*
+Implication ::= Disjuntion ("->" Disjunction)*
+Equivalence ::= Implication ("=" Implication)*
+Formula ::= Equivalence
+Sequent ::= Formula ("," Formula)* "|-" Formula
+
+-}
+```
+
+With my apologies for presenting this in a recursive-descent-parser-readable rather than human-readable format!
+
+## The details
+
+To be developed, but for now, uses set-labelled tableaux without unification, searching depth-first with iterative deepening up to a depth of 99.
+More control to come soon.
