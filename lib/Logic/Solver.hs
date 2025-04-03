@@ -5,12 +5,11 @@ import Logic.Pretty
 import Logic.Proofs
 
 import Data.Char
-import qualified Data.List as List
 import qualified Data.Set as Set
 
 -- | Find functions in branch
 branchFunctions :: NodeLabel -> Set.Set Function
-branchFunctions lns = freeFuncs
+branchFunctions (Node lns) = freeFuncs
   where
     freeTerms = Set.unions $ map free lns
     freeFuncs = Set.unions $ Set.map getFunction freeTerms
@@ -20,13 +19,13 @@ branchFunctions lns = freeFuncs
 
 -- | Instantiate new object to branch
 eigenVar :: NodeLabel -> Term
-eigenVar lns = FunctionApplication (Function newName 0) []
+eigenVar node = FunctionApplication (Function newName 0) []
   where
     candidates :: [String]
     candidates = [c ++ n | n <- "" : map show [1 :: Int ..], c <- map (pure . chr) [97 .. 122]]
 
     funcs :: Set.Set Function
-    funcs = branchFunctions lns
+    funcs = branchFunctions node
 
     getFuncName :: Function -> Identifier
     getFuncName (Function ident _) = ident
@@ -39,7 +38,7 @@ eigenVar lns = FunctionApplication (Function newName 0) []
 
 -- | Get the (multiples) lines (for multiple branches) which follow from a line of a proof
 branchLine :: Signed -> NodeLabel -> Branches
-branchLine line branch = map (map UnFinally) $ case line of
+branchLine line branch = Branches $ map (Node . map UnFinally) $ case line of
     (T (Not a)) -> [[F a]]
     (F (Not a)) -> [[T a]]
     (T (And a b)) -> [[T a, T b]]
@@ -65,7 +64,7 @@ branchLine line branch = map (map UnFinally) $ case line of
     -- TODO: We will probably need to branch into a set
     (T (Universally v a applied)) -> [T (Universally v a (Set.union applied terms')) : fs]
       where
-        terms = Set.unions (map free branch)
+        terms = free branch
         terms' = if null terms then Set.singleton $ eigenVar branch else terms -- Add object if empty
         fs = Set.toList $ Set.map (T . substitute a v) terms'
     -- Non-simplifying proof lines
@@ -76,12 +75,14 @@ branchLine line branch = map (map UnFinally) $ case line of
 TODO:  Use this to branch as late as possible
 -}
 nBranches :: ProofStep -> NodeLabel -> Int
-nBranches (Then _ branches) _ = length branches
-nBranches (UnFinally line) branch = length $ branchLine line branch
+nBranches (Then _ (Branches branches)) _ = length branches
+nBranches (UnFinally line) branch = length res
+  where
+    (Branches res) = branchLine line branch
 nBranches _ _ = 1
 
 -- | Turn an unFinally into a subproof, i.e. a list containing Finally or a Then (applying one step of simplification)
-finalise :: ProofStep -> [ProofStep] -> ProofStep
+finalise :: ProofStep -> NodeLabel -> ProofStep
 finalise (UnFinally f@(T (Predication _ _))) _ = Finally f
 finalise (UnFinally f@(F (Predication _ _))) _ = Finally f
 finalise (UnFinally line) branch = Then line $ branchLine line branch
@@ -89,7 +90,7 @@ finalise x _ = x
 
 -- | Get a tuple of (True Vars, False Vars)
 getInterpretations :: NodeLabel -> Interpretations
-getInterpretations proofNodes = (trues, falses)
+getInterpretations (Node lns) = Interpretations trues falses
   where
     isInterpretation :: ProofStep -> Bool
     isInterpretation (Finally (T (Predication _ _))) = True
@@ -109,7 +110,7 @@ getInterpretations proofNodes = (trues, falses)
     fromSigned (F a@(Predication _ _)) = a
     fromSigned ln = error $ "Not an interpretation" ++ pretty ln
 
-    interpretations = map fromFinally $ filter isInterpretation proofNodes
+    interpretations = map fromFinally $ filter isInterpretation lns
     trueVars = Set.fromList $ map fromSigned $ filter isTrue interpretations
     falseVars = Set.fromList $ map fromSigned $ filter (not . isTrue) interpretations
 
@@ -120,18 +121,18 @@ getInterpretations proofNodes = (trues, falses)
 isClosed :: NodeLabel -> Bool
 isClosed proofNodes = not $ Set.disjoint trues falses
   where
-    (trues, falses) = getInterpretations proofNodes
+    Interpretations trues falses = getInterpretations proofNodes
 
 -- | Check whether branch is open
 isOpen :: NodeLabel -> Bool
-isOpen proofNodes = not (isClosed proofNodes) && fullyExpanded proofNodes
+isOpen label@(Node lns) = not (isClosed label) && fullyExpanded lns
   where
-    fullyExpanded :: NodeLabel -> Bool
+    fullyExpanded :: [ProofStep] -> Bool
     fullyExpanded [] = True
     -- True universal expansion doesn't leave the branch
     -- So, check if we can apply the rule to any new objects
     fullyExpanded ((UnFinally (T (Universally _ _ ts))) : xs)
-        | ts == Set.unions (map free proofNodes) = fullyExpanded xs
+        | ts == free label = fullyExpanded xs
         | otherwise = False
     fullyExpanded ((UnFinally _) : _) = False
     fullyExpanded ((Then _ _) : _) = False
@@ -139,17 +140,19 @@ isOpen proofNodes = not (isClosed proofNodes) && fullyExpanded proofNodes
 
 -- | Children for recursion by expanding thens
 getChildren :: NodeLabel -> Branches
-getChildren = combineThens [[]]
+getChildren (Node lns) = Branches (map Node nestedSteps)
   where
+    nestedSteps = combineThens [[]] lns
+
     isThen (Then _ _) = True
     isThen _ = False
 
-    fromThen :: ProofStep -> Branches
-    fromThen (Then _ b) = b
+    fromThen :: ProofStep -> [[ProofStep]]
+    fromThen (Then _ (Branches b)) = [b' | (Node b') <- b]
     fromThen _ = error "Not a Then"
 
     -- Recursive helper
-    combineThens :: Branches -> NodeLabel -> Branches
+    combineThens :: [[ProofStep]] -> [ProofStep] -> [[ProofStep]]
     combineThens acc [] = acc
     combineThens acc (x : xs)
         | isThen x = combineThens ([existing ++ new | existing <- acc, new <- fromThen x]) xs
@@ -157,17 +160,18 @@ getChildren = combineThens [[]]
 
 -- | Recursively prove
 prove :: Int -> NodeLabel -> ProofNode
-prove depth xs
-    | depth <= 0 = Proof xs Cutoff Nothing
-    | isClosed proof = Proof xs Closed Nothing
-    | isOpen proof = Proof xs (Open [interpretations]) Nothing
-    | childIsOpen = Proof xs (Open mergedInterpretations) (Just provenChildren)
-    | childrenAreClosed = Proof xs Closed (Just provenChildren)
-    | otherwise = Proof xs Cutoff Nothing -- TODO: WHAT CASE IS THIS
+prove depth label@(Node xs)
+    | depth <= 0 = Proof label Cutoff Nothing
+    | isClosed proof = Proof label Closed Nothing
+    | isOpen proof = Proof label (Open [interpretations]) Nothing
+    | childIsOpen = Proof label (Open openChildInterpretations) (Just provenChildren)
+    | childrenAreClosed = Proof label Closed (Just provenChildren)
+    | otherwise = Proof label Cutoff Nothing -- TODO: WHAT CASE IS THIS
   where
-    proof = map (`finalise` xs) xs
+    proof :: NodeLabel
+    proof = Node [step `finalise` label | step <- xs]
 
-    children = getChildren proof
+    (Branches children) = getChildren proof
 
     provenChildren = map (prove $ depth - 1) children
 
@@ -190,12 +194,16 @@ prove depth xs
     fromNode (Proof _ (Open a) _) = a
     fromNode _ = error "Not a singleton Open"
 
-    openChildInterpretations = map fromNode openChildren
-    mergedInterpretations = foldl List.union [] openChildInterpretations
+    openChildInterpretations = concatMap fromNode openChildren
+    -- mergedInterpretations =
+    --     foldl
+    --         (\(Interpretations t f) (Interpretations t' f') -> Interpretations (t `Set.union` t') (f `Set.union` f'))
+    --         (Interpretations Set.empty Set.empty)
+    --         openChildInterpretations
 
 -- | Setup a proof from a sequent
 setupProof :: Sequent -> NodeLabel
-setupProof (Entails a b) = UnFinally (F b) : [UnFinally (T x) | x <- a]
+setupProof (Entails a b) = Node $ UnFinally (F b) : [UnFinally (T x) | x <- a]
 
 -- | Check if a sequent is valid
 isValid :: Sequent -> Maybe Bool

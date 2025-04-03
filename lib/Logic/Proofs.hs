@@ -16,9 +16,14 @@ data ProofStep
     | Cutoff
     deriving (Show, Eq)
 
-type Branches = [NodeLabel] -- Branched Possibilities
-type NodeLabel = [ProofStep]
-type Interpretations = (Set.Set Formula, Set.Set Formula) -- (trues, falses)
+newtype Branches = Branches [NodeLabel] -- Branched Possibilities
+    deriving (Show, Eq)
+
+newtype NodeLabel = Node [ProofStep]
+    deriving (Show, Eq)
+
+data Interpretations = Interpretations (Set.Set Formula) (Set.Set Formula) -- (trues, falses)
+    deriving (Show, Eq)
 
 data ProofNode = Proof NodeLabel ProofStep (Maybe [ProofNode])
     deriving (Eq)
@@ -33,3 +38,6 @@ instance Free ProofStep where
     free Closed = Set.empty
     free (Open _) = Set.empty
     free Cutoff = Set.empty
+
+instance Free NodeLabel where
+    free (Node steps) = Set.unions $ map free steps

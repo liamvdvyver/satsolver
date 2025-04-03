@@ -10,7 +10,7 @@ import System.Environment
 proofResult :: ProofNode -> String
 proofResult proof = case proof of
         (Proof _ Closed _) -> "Valid"
-        (Proof _ (Open int) _) -> "Invalid, with countermodel " ++ prettyInts int
+        (Proof _ (Open int) _) -> "Found countermodel " ++ commaSeparate int
         _ -> "Did not reduce"
 
 main :: IO ()
@@ -20,7 +20,7 @@ main = do
     let sequent = parseSequent $ tokenise arg
     let proof = proveSequent sequent
 
-    print $ proofResult proof
-    print "Proof:"
+    putStrLn $ proofResult proof
     let p = pretty proof
-    putStr p
+    putStrLn ""
+    putStrLn p

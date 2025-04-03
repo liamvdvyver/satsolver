@@ -3,8 +3,9 @@ module Main where
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (Assertable (assert), assertBool, assertEqual, testCase)
 
-import Solver
-import Types
+import Logic.Solver
+import Logic.Proofs
+import Logic
 
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
@@ -100,8 +101,8 @@ testBranchLine =
     testCase "Apply branching" $
         assertEqual
             []
-            (branchLine (T (p `Iff` q)) [])
-            [[UnFinally (T p), UnFinally (T q)], [UnFinally (F p), UnFinally (F q)]]
+            (branchLine (T (p `Iff` q)) (Node []))
+            (Branches [Node [UnFinally (T p), UnFinally (T q)], Node [UnFinally (F p), UnFinally (F q)]])
 
 -- Finalisation
 
@@ -113,7 +114,7 @@ testFinalisePred =
     testCase "Finalise predicate" $
         assertEqual
             []
-            (finalise (UnFinally (T p)) [])
+            (finalise (UnFinally (T p)) (Node []))
             (Finally (T p))
 
 testFinaliseDone :: TestTree
@@ -121,7 +122,7 @@ testFinaliseDone =
     testCase "Finalise final predicate" $
         assertEqual
             []
-            (finalise (Finally (T p)) [])
+            (finalise (Finally (T p)) (Node []))
             (Finally (T p))
 
 testFinaliseLong :: TestTree
@@ -129,8 +130,8 @@ testFinaliseLong =
     testCase "Finalise long line" $
         assertEqual
             []
-            (finalise (UnFinally (T (Or p q))) [])
-            (Then (T (Or p q)) [[UnFinally (T p)], [UnFinally (T q)]])
+            (finalise (UnFinally (T (Or p q))) (Node []))
+            (Then (T (Or p q)) (Branches [Node [UnFinally (T p)], Node [UnFinally (T q)]]))
 
 -- Interpretatons
 
@@ -142,15 +143,15 @@ testGetInterpretations =
     testCase "Get interpretations" $
         assertEqual
             []
-            (getInterpretations [Finally $ T p, Finally $ F p, Finally $ T q, Finally $ T (p `Or` q), UnFinally $ T q])
-            (Set.fromList [p, q, true], Set.fromList [false, p])
+            (getInterpretations $ Node [Finally $ T p, Finally $ F p, Finally $ T q, Finally $ T (p `Or` q), UnFinally $ T q])
+            (Interpretations (Set.fromList [p, q, true]) (Set.fromList [false, p]))
 
 testIsClosed :: TestTree
 testIsClosed =
     testGroup
         "Is branch closed?"
-        [ testCase "Closed branch" $ assertBool [] $ isClosed [Finally $ T p, Finally $ F p]
-        , testCase "Not closed branch" $ assertBool [] $ not $ isClosed [Finally $ T p, UnFinally $ F p]
+        [ testCase "Closed branch" $ assertBool [] $ isClosed $ Node [Finally $ T p, Finally $ F p]
+        , testCase "Not closed branch" $ assertBool [] $ not $ isClosed $ Node [Finally $ T p, UnFinally $ F p]
         ]
 
 testIsOpen :: TestTree
@@ -158,13 +159,13 @@ testIsOpen =
     testGroup
         "Is branch open?"
         $ testCase [] . assertBool []
-            <$> [ isOpen [Finally $ T p, Finally $ F q]
-                , not $ isOpen [Finally $ T p, Finally $ F p]
-                , not $ isOpen [Finally $ T p, Finally $ F q, UnFinally $ T p]
-                , not $ isOpen [Finally $ T p, Then (F $ p `Or` q) [[UnFinally $ F p, UnFinally $ F q]]]
-                , not $ isOpen [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
-                , not $ isOpen [UnFinally $ T u, Finally $ T pa]
-                , isOpen [UnFinally $ T ua, Finally $ T pa]
+            <$> [ isOpen $ Node [Finally $ T p, Finally $ F q]
+                , not $ isOpen $ Node [Finally $ T p, Finally $ F p]
+                , not $ isOpen $ Node [Finally $ T p, Finally $ F q, UnFinally $ T p]
+                , not $ isOpen $ Node [Finally $ T p, Then (F $ p `Or` q) (Branches [Node [UnFinally $ F p, UnFinally $ F q]])]
+                , not $ isOpen $ Node [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
+                , not $ isOpen $ Node [UnFinally $ T u, Finally $ T pa]
+                , isOpen $ Node [UnFinally $ T ua, Finally $ T pa]
                 ]
   where
     ua = Universally (Var "x") px $ Set.singleton a
@@ -179,8 +180,8 @@ testGetChildren =
     testCase "Get children in proof tree" $
         assertEqual
             []
-            (getChildren [Finally $ T p, Then (F $ p `Or` q) [[UnFinally $ F p, UnFinally $ F q]]])
-            [[Finally $ T p, UnFinally $ F p, UnFinally $ F q]]
+            (getChildren $ Node [Finally $ T p, Then (F $ p `Or` q) (Branches [Node [UnFinally $ F p, UnFinally $ F q]])])
+            (Branches [Node [Finally $ T p, UnFinally $ F p, UnFinally $ F q]])
 
 proofDepth = 99
 testProve :: TestTree
@@ -188,23 +189,23 @@ testProve =
     testGroup "Run proofs on formulae" $
         (\(a, b) -> testCase [] $ assertEqual [] ((\(Proof _ s _) -> s) a) b)
             <$> [
-                    ( prove proofDepth [Finally $ T p, UnFinally $ F $ p `And` q]
-                    , Open [(Set.fromList [p, true], Set.fromList [false, q])]
+                    ( prove proofDepth $ Node [Finally $ T p, UnFinally $ F $ p `And` q]
+                    , Open [Interpretations (Set.fromList [p, true]) (Set.fromList [false, q])]
                     )
                 ,
-                    ( prove proofDepth [Finally $ T p, Finally $ F p, Finally $ F q]
+                    ( prove proofDepth $ Node [Finally $ T p, Finally $ F p, Finally $ F q]
                     , Closed
                     )
                 ,
-                    ( prove proofDepth [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
+                    ( prove proofDepth $ Node [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
                     , Closed
                     )
                 ,
-                    ( prove proofDepth [Finally $ T p, Then (F $ p `Or` q) [[UnFinally $ F p, UnFinally $ F q]]] -- The parent
+                    ( prove proofDepth $ Node [Finally $ T p, Then (F $ p `Or` q) (Branches [Node [UnFinally $ F p, UnFinally $ F q]])] -- The parent
                     , Closed
                     )
                 ,
-                    ( prove proofDepth [Finally $ T p, UnFinally $ F $ p `Or` q]
+                    ( prove proofDepth $ Node [Finally $ T p, UnFinally $ F $ p `Or` q]
                     , Closed
                     )
                 ]
@@ -228,7 +229,7 @@ testProveSequent =
         assertEqual
             []
             ((\(Proof _ s _) -> s) (proveSequent $ [(p `Or` q) `Iff` (r `Or` s)] `Entails` ((p `Iff` r) `Or` (q `Iff` s))))
-            (Open [(Set.fromList [p, s, true], Set.fromList [false, q, r]), (Set.fromList [q, r, true], Set.fromList [false, p, s])])
+            (Open [Interpretations (Set.fromList [p, s, true]) (Set.fromList [false, q, r]), Interpretations (Set.fromList [q, r, true]) (Set.fromList [false, p, s])])
 
 -- All tests
 

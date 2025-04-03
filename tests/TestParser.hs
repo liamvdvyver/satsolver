@@ -3,8 +3,8 @@ module Main where
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (Assertable (assert), assertBool, assertEqual, testCase)
 
-import Parser
-import Types
+import Logic.Parser
+import Logic
 
 main = defaultMain testSequents
 
