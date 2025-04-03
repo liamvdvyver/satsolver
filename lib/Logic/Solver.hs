@@ -1,68 +1,12 @@
+module Logic.Solver where
 
-{-# LANGUAGE FlexibleInstances #-}
-module Solver where
+import Logic
+import Logic.Pretty
+import Logic.Proofs
 
 import Data.Char
-import Data.List as List
+import qualified Data.List as List
 import qualified Data.Set as Set
-import Types
-
-class Substitute t where
-    substitute :: t -> Term -> Term -> t
-
-instance Substitute Formula where
-    substitute (And f g) from to = And (substitute f from to) (substitute g from to)
-    substitute (Or f g) from to = Or (substitute f from to) (substitute g from to)
-    substitute (Not f) from to = Not (substitute f from to)
-    substitute (Implies f g) from to = Implies (substitute f from to) (substitute g from to)
-    substitute (Iff f g) from to = Iff (substitute f from to) (substitute g from to)
-    substitute q@(Existentially v f) from to
-        | v == from = q
-        | otherwise = Existentially v (substitute f from to)
-    substitute q@(Universally v f t) from to
-        | v == from = q
-        | otherwise = Universally v (substitute f from to) t
-    substitute (Predication predicate terms) from to = Predication predicate $ map (\t -> substitute t from to) terms
-
-instance Substitute Term where
-    substitute term from to
-        | term == from = to
-        | otherwise = case term of
-            Var s -> Var s
-            FunctionApplication function terms' -> FunctionApplication function $ map (\t -> substitute t from to) terms'
-
-class Free t where
-    free :: t -> Set.Set Term
-
--- | Find free terms in formula
-instance Free Formula where
-    free (And a b) = free a `Set.union` free b
-    free (Or a b) = free a `Set.union` free b
-    free (Not a) = free a
-    free (Implies a b) = free a `Set.union` free b
-    free (Iff a b) = free a `Set.union` free b
-    free (Existentially bound formula) = Set.filter (/= bound) $ free formula
-    free (Universally bound formula _) = Set.filter (/= bound) $ free formula
-    free (Predication _ t) = foldl' Set.union Set.empty $ map free t
-
-instance Free Term where
-    free v@(Var _) = Set.singleton v
-    free f@(FunctionApplication _ ts) = f `Set.insert` foldl' Set.union Set.empty (map free ts)
-
-instance Free ProofStep where
-    free (Finally (T formula)) = free formula
-    free (Finally (F formula)) = free formula
-    free (UnFinally (T formula)) = free formula
-    free (UnFinally (F formula)) = free formula
-    free (Then (T formula) _) = free formula
-    free (Then (F formula) _) = free formula
-    free Closed = Set.empty
-    free (Open _) = Set.empty
-    free Cutoff = Set.empty
-
--- -- | Find free terms in branch
--- instance Free NodeLabel where
---     free lns = lns >>= free
 
 -- | Find functions in branch
 branchFunctions :: NodeLabel -> Set.Set Function

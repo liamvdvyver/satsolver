@@ -1,8 +1,9 @@
-module Parser (parseSequent, parseFormula, tokenise) where
+module Logic.Parser (parseSequent, parseFormula, tokenise) where
+
+import Logic
 
 import Data.Char
 import qualified Data.Set as Set
-import Types
 
 {- The complete grammar:
 

@@ -1,9 +1,11 @@
 module Main where
 
-import Solver
-import Parser
+import Logic.Proofs
+import Logic.Solver
+import Logic.Parser
+import Logic.Pretty
+
 import System.Environment
-import Types
 
 proofResult :: ProofNode -> String
 proofResult proof = case proof of

@@ -17,7 +17,7 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  Solver, Parser, Types
+    exposed-modules:  Logic, Logic.Solver, Logic.Parser, Logic.Proofs, Logic.Pretty
     -- other-extensions:
     build-depends:    base >=4.16.4.0, containers
     hs-source-dirs:   lib
