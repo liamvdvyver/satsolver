@@ -160,47 +160,6 @@ getChildren (LineSet lns) = Branched (map LineSet nestedSteps)
         | otherwise = combineThens (map (++ [x]) acc) xs
 
 -- | Recursively prove
--- prove :: Int -> LineSet -> ProofNode
--- prove depth label@(LineSet xs)
---     | depth <= 0 = Proof label Cutoff Nothing
---     | isClosed proof = Proof label Closed Nothing
---     | isOpen proof = Proof label (Open [interpretations]) Nothing
---     | childIsOpen = Proof label (Open openChildInterpretations) (Just provenChildren)
---     | childrenAreClosed = Proof label Closed (Just provenChildren)
---     | otherwise = Proof label Cutoff Nothing -- TODO: WHAT CASE IS THIS
---   where
---     proof :: LineSet
---     proof = LineSet [step `finalise` label | step <- xs]
---
---     (Branched bs) = getChildren proof
---
---     provenChildren = map (prove $ depth - 1) bs
---
---     isLiteralOpen :: ProofNode -> Bool
---     isLiteralOpen node = case nodeValue node of
---         (Open _) -> True
---         _ -> False
---
---     isLiteralClosed :: ProofNode -> Bool
---     isLiteralClosed node = case nodeValue node of
---         Closed -> True
---         _ -> False
---
---     openChildren = filter isLiteralOpen provenChildren
---     childIsOpen = any isLiteralOpen provenChildren
---
---     childrenAreClosed = all isLiteralClosed provenChildren
---
---     interpretations = getInterpretations proof
---
---     fromLineSet :: ProofNode -> [Interpretations]
---     fromLineSet node = case nodeValue node of
---         (Open a) -> a
---         _ -> error "Not a singleton Open"
---
---     openChildInterpretations = concatMap fromLineSet openChildren
-
--- | Recursively prove
 prove :: Int -> LineSet -> ProofNode
 prove depth node@(LineSet lns)
     | depth <= 0 = basicProof {nodeValue = Cutoff}
@@ -244,15 +203,6 @@ prove depth node@(LineSet lns)
                 returnedCutoff c = case nodeValue c of
                     Cutoff -> True
                     _ -> False
-
-
-
-
--- mergedInterpretations =
---     foldl
---         (\(Interpretations t f) (Interpretations t' f') -> Interpretations (t `Set.union` t') (f `Set.union` f'))
---         (Interpretations Set.empty Set.empty)
---         openChildInterpretations
 
 -- | Setup a proof from a sequent
 setupProof :: Sequent -> LineSet
