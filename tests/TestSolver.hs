@@ -40,13 +40,13 @@ ua :: Formula
 ua = Universally (Var "x") px $ Set.singleton a
 
 pa :: Formula
-pa = Predication (Predicate "P" 1) [a]
+pa = ApplyPred (Predicate "P" 1) [a]
 
 pb :: Formula
-pb = Predication (Predicate "P" 1) [b]
+pb = ApplyPred (Predicate "P" 1) [b]
 
 px :: Formula
-px = Predication (Predicate "P" 1) [x]
+px = ApplyPred (Predicate "P" 1) [x]
 
 -- Substitution
 
@@ -101,8 +101,8 @@ testBranchLine =
     testCase "Apply branching" $
         assertEqual
             []
-            (branchLine (T (p `Iff` q)) (Node []))
-            (Branches [Node [UnFinally (T p), UnFinally (T q)], Node [UnFinally (F p), UnFinally (F q)]])
+            (branchLine (T (p `Iff` q)) (LineSet []))
+            (Branched [LineSet [UnFinally (T p), UnFinally (T q)], LineSet [UnFinally (F p), UnFinally (F q)]])
 
 -- Finalisation
 
@@ -114,7 +114,7 @@ testFinalisePred =
     testCase "Finalise predicate" $
         assertEqual
             []
-            (finalise (UnFinally (T p)) (Node []))
+            (finalise (UnFinally (T p)) (LineSet []))
             (Finally (T p))
 
 testFinaliseDone :: TestTree
@@ -122,7 +122,7 @@ testFinaliseDone =
     testCase "Finalise final predicate" $
         assertEqual
             []
-            (finalise (Finally (T p)) (Node []))
+            (finalise (Finally (T p)) (LineSet []))
             (Finally (T p))
 
 testFinaliseLong :: TestTree
@@ -130,8 +130,8 @@ testFinaliseLong =
     testCase "Finalise long line" $
         assertEqual
             []
-            (finalise (UnFinally (T (Or p q))) (Node []))
-            (Then (T (Or p q)) (Branches [Node [UnFinally (T p)], Node [UnFinally (T q)]]))
+            (finalise (UnFinally (T (Or p q))) (LineSet []))
+            (Then (T (Or p q)) (Branched [LineSet [UnFinally (T p)], LineSet [UnFinally (T q)]]))
 
 -- Interpretatons
 
@@ -143,15 +143,15 @@ testGetInterpretations =
     testCase "Get interpretations" $
         assertEqual
             []
-            (getInterpretations $ Node [Finally $ T p, Finally $ F p, Finally $ T q, Finally $ T (p `Or` q), UnFinally $ T q])
-            (Interpretations (Set.fromList [p, q, true]) (Set.fromList [false, p]))
+            (getInterpretations $ LineSet [Finally $ T p, Finally $ F p, Finally $ T q, Finally $ T (p `Or` q), UnFinally $ T q])
+            (Model (Set.fromList [p, q, true]) (Set.fromList [false, p]))
 
 testIsClosed :: TestTree
 testIsClosed =
     testGroup
         "Is branch closed?"
-        [ testCase "Closed branch" $ assertBool [] $ isClosed $ Node [Finally $ T p, Finally $ F p]
-        , testCase "Not closed branch" $ assertBool [] $ not $ isClosed $ Node [Finally $ T p, UnFinally $ F p]
+        [ testCase "Closed branch" $ assertBool [] $ isClosed $ LineSet [Finally $ T p, Finally $ F p]
+        , testCase "Not closed branch" $ assertBool [] $ not $ isClosed $ LineSet [Finally $ T p, UnFinally $ F p]
         ]
 
 testIsOpen :: TestTree
@@ -159,13 +159,13 @@ testIsOpen =
     testGroup
         "Is branch open?"
         $ testCase [] . assertBool []
-            <$> [ isOpen $ Node [Finally $ T p, Finally $ F q]
-                , not $ isOpen $ Node [Finally $ T p, Finally $ F p]
-                , not $ isOpen $ Node [Finally $ T p, Finally $ F q, UnFinally $ T p]
-                , not $ isOpen $ Node [Finally $ T p, Then (F $ p `Or` q) (Branches [Node [UnFinally $ F p, UnFinally $ F q]])]
-                , not $ isOpen $ Node [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
-                , not $ isOpen $ Node [UnFinally $ T u, Finally $ T pa]
-                , isOpen $ Node [UnFinally $ T ua, Finally $ T pa]
+            <$> [ isOpen $ LineSet [Finally $ T p, Finally $ F q]
+                , not $ isOpen $ LineSet [Finally $ T p, Finally $ F p]
+                , not $ isOpen $ LineSet [Finally $ T p, Finally $ F q, UnFinally $ T p]
+                , not $ isOpen $ LineSet [Finally $ T p, Then (F $ p `Or` q) (Branched [LineSet [UnFinally $ F p, UnFinally $ F q]])]
+                , not $ isOpen $ LineSet [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
+                , not $ isOpen $ LineSet [UnFinally $ T u, Finally $ T pa]
+                , isOpen $ LineSet [UnFinally $ T ua, Finally $ T pa]
                 ]
   where
     ua = Universally (Var "x") px $ Set.singleton a
@@ -180,32 +180,32 @@ testGetChildren =
     testCase "Get children in proof tree" $
         assertEqual
             []
-            (getChildren $ Node [Finally $ T p, Then (F $ p `Or` q) (Branches [Node [UnFinally $ F p, UnFinally $ F q]])])
-            (Branches [Node [Finally $ T p, UnFinally $ F p, UnFinally $ F q]])
+            (getChildren $ LineSet [Finally $ T p, Then (F $ p `Or` q) (Branched [LineSet [UnFinally $ F p, UnFinally $ F q]])])
+            (Branched [LineSet [Finally $ T p, UnFinally $ F p, UnFinally $ F q]])
 
 proofDepth = 99
 testProve :: TestTree
 testProve =
     testGroup "Run proofs on formulae" $
-        (\(a, b) -> testCase [] $ assertEqual [] ((\(Proof _ s _) -> s) a) b)
+        (\(a, b) -> testCase [] $ assertEqual [] (nodeValue a) b)
             <$> [
-                    ( prove proofDepth $ Node [Finally $ T p, UnFinally $ F $ p `And` q]
-                    , Open [Interpretations (Set.fromList [p, true]) (Set.fromList [false, q])]
+                    ( prove proofDepth $ LineSet [Finally $ T p, UnFinally $ F $ p `And` q]
+                    , Open [Model (Set.fromList [p, true]) (Set.fromList [false, q])]
                     )
                 ,
-                    ( prove proofDepth $ Node [Finally $ T p, Finally $ F p, Finally $ F q]
+                    ( prove proofDepth $ LineSet [Finally $ T p, Finally $ F p, Finally $ F q]
                     , Closed
                     )
                 ,
-                    ( prove proofDepth $ Node [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
+                    ( prove proofDepth $ LineSet [Finally $ T p, UnFinally $ F p, UnFinally $ F q]
                     , Closed
                     )
                 ,
-                    ( prove proofDepth $ Node [Finally $ T p, Then (F $ p `Or` q) (Branches [Node [UnFinally $ F p, UnFinally $ F q]])] -- The parent
+                    ( prove proofDepth $ LineSet [Finally $ T p, Then (F $ p `Or` q) (Branched [LineSet [UnFinally $ F p, UnFinally $ F q]])] -- The parent
                     , Closed
                     )
                 ,
-                    ( prove proofDepth $ Node [Finally $ T p, UnFinally $ F $ p `Or` q]
+                    ( prove proofDepth $ LineSet [Finally $ T p, UnFinally $ F $ p `Or` q]
                     , Closed
                     )
                 ]
@@ -223,13 +223,17 @@ testValid =
                             [(p `Or` q) `Iff` (r `Or` s)] `Entails` ((p `Iff` r) `Or` (q `Iff` s))
         ]
 
+satProof :: ProofValue -> Bool
+satProof v = case v of
+    Open _ -> True
+    Closed -> False
+
 testProveSequent :: TestTree
 testProveSequent =
     testCase "Run proofs on sequent" $
-        assertEqual
-            []
-            ((\(Proof _ s _) -> s) (proveSequent $ [(p `Or` q) `Iff` (r `Or` s)] `Entails` ((p `Iff` r) `Or` (q `Iff` s))))
-            (Open [Interpretations (Set.fromList [p, s, true]) (Set.fromList [false, q, r]), Interpretations (Set.fromList [q, r, true]) (Set.fromList [false, p, s])])
+        assertBool
+            [] $
+            satProof (nodeValue (proveSequent $ [(p `Or` q) `Iff` (r `Or` s)] `Entails` ((p `Iff` r) `Or` (q `Iff` s))))
 
 -- All tests
 
