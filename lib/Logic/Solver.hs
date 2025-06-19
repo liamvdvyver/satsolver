@@ -132,6 +132,7 @@ isOpen label@(LineSet lns) = not (isClosed label) && fullyExpanded lns
     -- True universal expansion doesn't leave the branch
     -- So, check if we can apply the rule to any new objects
     fullyExpanded ((UnFinally (T (Universally _ _ ts))) : xs)
+        | null ts = False
         | ts == free label = fullyExpanded xs
         | otherwise = False
     fullyExpanded ((UnFinally _) : _) = False
