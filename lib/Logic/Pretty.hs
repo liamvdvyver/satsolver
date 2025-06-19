@@ -59,7 +59,7 @@ instance Pretty Model where
 
 instance Pretty Line where
     pretty (Finally s) = pretty s
-    pretty (UnFinally s) = pretty s
+    pretty (UnFinally s) = inBrackets  s
     pretty (Then s _) = inBrackets s ++ " (branch) "
 
 instance Pretty Branched where
